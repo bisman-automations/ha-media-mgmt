@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.13 gets Home Assistant before 2026.8, 3.14 the newest; device
+        # linking works differently in each.
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements_test.txt
+      - run: pytest -q
+      - name: Check the sidebar app's JavaScript parses
+        run: node --check custom_components/media_mgmt/frontend/media-mgmt-panel.js

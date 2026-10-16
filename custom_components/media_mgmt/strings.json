@@ -1,0 +1,398 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Choose a speaker",
+        "description": "Pick the media player to manage: a Sonos, HomePod, Google or Nest speaker, Echo, Music Assistant player or any other.",
+        "data": {
+          "media_player": "Speaker"
+        }
+      },
+      "settings": {
+        "title": "Speaker rules",
+        "description": "Rules for {entity}. You can change all of this later in the Media Mgmt sidebar app, which also has schedules and sleep timers.",
+        "sections": {
+          "listening": {
+            "name": "Listening time",
+            "description": "A daily limit, and times music must stay off.",
+            "data": {
+              "daily_budget": "Daily listening time",
+              "warn_minutes": "Warn before time runs out",
+              "quiet_windows": "Quiet windows",
+              "limit_action": "When music isn't allowed",
+              "adult_mode_duration": "Adult mode lasts"
+            },
+            "data_description": {
+              "daily_budget": "0 means no daily limit. Only time spent playing counts, not paused time.",
+              "warn_minutes": "Fires a media_mgmt_warning event, and says it on the speaker if warnings are set up.",
+              "quiet_windows": "Times music stays off, comma separated, e.g. 20:30-07:00 Bedtime, 08:00-15:00 School. Schedules can still play during them.",
+              "limit_action": "What happens when the limit runs out, a quiet window starts or you block the speaker.",
+              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off."
+            }
+          },
+          "filter": {
+            "name": "Blocked music",
+            "description": "Music that's skipped as soon as it plays. One per line. The sidebar app can block anything that's played before with one tap.",
+            "data": {
+              "blocked_tracks": "Songs",
+              "blocked_artists": "Artists",
+              "blocked_albums": "Albums",
+              "blocked_sources": "Apps and sources",
+              "blocked_keywords": "Words in a title",
+              "filter_action": "When blocked music plays"
+            },
+            "data_description": {
+              "blocked_tracks": "Song — Artist, or just the song's name to block it by anyone. Versions like (Remastered) or - Live match too.",
+              "blocked_artists": "Also blocks songs the artist features on.",
+              "blocked_sources": "As the speaker reports them, such as YouTube Music or a radio station.",
+              "blocked_keywords": "Whole words in a song's or album's title.",
+              "filter_action": "Skipping goes to the next song, so the rest of the playlist keeps playing."
+            }
+          },
+          "volume": {
+            "name": "Volume",
+            "description": "Keep the speaker from being turned up too loud.",
+            "data": {
+              "max_volume": "Maximum volume"
+            },
+            "data_description": {
+              "max_volume": "100% means no cap. Turned straight back down if it goes higher."
+            }
+          },
+          "announcements": {
+            "name": "Spoken warnings",
+            "description": "Say when listening time is running out, and just before the music stops.",
+            "data": {
+              "announce_tts": "Voice",
+              "announce_on_player": "Say it on this speaker",
+              "announce_players": "Also say it on"
+            },
+            "data_description": {
+              "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
+              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "bad_quiet_windows": "Quiet windows should look like 20:30-07:00 Bedtime, separated by commas.",
+      "announce_needs_voice": "Pick a voice to say warnings with."
+    },
+    "abort": {
+      "already_configured": "This speaker already has a Media Mgmt profile."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Speaker rules",
+        "description": "Schedules, sleep timers and blocking music from what's been played are in the Media Mgmt sidebar app.",
+        "sections": {
+          "listening": {
+            "name": "Listening time",
+            "description": "A daily limit, and times music must stay off.",
+            "data": {
+              "daily_budget": "Daily listening time",
+              "warn_minutes": "Warn before time runs out",
+              "quiet_windows": "Quiet windows",
+              "limit_action": "When music isn't allowed",
+              "adult_mode_duration": "Adult mode lasts"
+            },
+            "data_description": {
+              "daily_budget": "0 means no daily limit. Only time spent playing counts, not paused time.",
+              "warn_minutes": "Fires a media_mgmt_warning event, and says it on the speaker if warnings are set up.",
+              "quiet_windows": "Times music stays off, comma separated, e.g. 20:30-07:00 Bedtime, 08:00-15:00 School. Schedules can still play during them.",
+              "limit_action": "What happens when the limit runs out, a quiet window starts or you block the speaker.",
+              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off."
+            }
+          },
+          "filter": {
+            "name": "Blocked music",
+            "description": "Music that's skipped as soon as it plays. One per line. The sidebar app can block anything that's played before with one tap.",
+            "data": {
+              "blocked_tracks": "Songs",
+              "blocked_artists": "Artists",
+              "blocked_albums": "Albums",
+              "blocked_sources": "Apps and sources",
+              "blocked_keywords": "Words in a title",
+              "filter_action": "When blocked music plays"
+            },
+            "data_description": {
+              "blocked_tracks": "Song — Artist, or just the song's name to block it by anyone. Versions like (Remastered) or - Live match too.",
+              "blocked_artists": "Also blocks songs the artist features on.",
+              "blocked_sources": "As the speaker reports them, such as YouTube Music or a radio station.",
+              "blocked_keywords": "Whole words in a song's or album's title.",
+              "filter_action": "Skipping goes to the next song, so the rest of the playlist keeps playing."
+            }
+          },
+          "volume": {
+            "name": "Volume",
+            "description": "Keep the speaker from being turned up too loud.",
+            "data": {
+              "max_volume": "Maximum volume"
+            },
+            "data_description": {
+              "max_volume": "100% means no cap. Turned straight back down if it goes higher."
+            }
+          },
+          "announcements": {
+            "name": "Spoken warnings",
+            "description": "Say when listening time is running out, and just before the music stops.",
+            "data": {
+              "announce_tts": "Voice",
+              "announce_on_player": "Say it on this speaker",
+              "announce_players": "Also say it on"
+            },
+            "data_description": {
+              "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
+              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "bad_quiet_windows": "Quiet windows should look like 20:30-07:00 Bedtime, separated by commas.",
+      "announce_needs_voice": "Pick a voice to say warnings with."
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "enforced": "Enforced",
+          "monitor_only": "Monitor only",
+          "paused": "Paused"
+        }
+      }
+    },
+    "switch": {
+      "music_filter": {
+        "name": "Music filter"
+      },
+      "adult_mode": {
+        "name": "Adult mode"
+      }
+    },
+    "button": {
+      "block_current_track": {
+        "name": "Block this song"
+      },
+      "block_current_artist": {
+        "name": "Block this artist"
+      }
+    },
+    "sensor": {
+      "enforcement_state": {
+        "name": "Enforcement state",
+        "state": {
+          "ok": "OK",
+          "warning": "Warning",
+          "enforcing": "Blocked",
+          "paused": "Paused",
+          "adult_mode": "Adult mode",
+          "schedule": "Schedule playing"
+        }
+      },
+      "listening_time_today": {
+        "name": "Listening time today"
+      },
+      "time_remaining_today": {
+        "name": "Time remaining today"
+      },
+      "extension_today": {
+        "name": "Extra time today"
+      },
+      "now_playing": {
+        "name": "Now playing"
+      },
+      "songs_today": {
+        "name": "Songs today"
+      },
+      "blocked_today": {
+        "name": "Blocked today"
+      },
+      "sleep_timer": {
+        "name": "Sleep timer"
+      },
+      "next_schedule": {
+        "name": "Next schedule"
+      }
+    }
+  },
+  "services": {
+    "grant_extension": {
+      "name": "Grant extra time",
+      "description": "Add (or take away) minutes from today's listening time.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "Minutes to add. Negative to take time away."
+        }
+      }
+    },
+    "force_block": {
+      "name": "Block now",
+      "description": "Stop the music and keep it stopped until unblocked or the day ends.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        }
+      }
+    },
+    "unblock": {
+      "name": "Unblock",
+      "description": "Lift a Block now.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        }
+      }
+    },
+    "reset_usage": {
+      "name": "Reset today",
+      "description": "Clear today's listening time, extra time and block.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        }
+      }
+    },
+    "block_media": {
+      "name": "Block music",
+      "description": "Block a song, artist, album, app or word. Leave the value empty and turn on Current to block what's playing.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        },
+        "kind": {
+          "name": "What to block",
+          "description": "Song, artist, album, app or word."
+        },
+        "value": {
+          "name": "Name",
+          "description": "For a song, Song — Artist."
+        },
+        "current": {
+          "name": "What's playing now",
+          "description": "Block the song, artist, album or app playing now."
+        }
+      }
+    },
+    "unblock_media": {
+      "name": "Unblock music",
+      "description": "Remove a song, artist, album, app or word from the blocked music.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        },
+        "kind": {
+          "name": "What to unblock",
+          "description": "Song, artist, album, app or word."
+        },
+        "value": {
+          "name": "Name",
+          "description": "As it's listed in the blocked music."
+        }
+      }
+    },
+    "set_sleep_timer": {
+      "name": "Set sleep timer",
+      "description": "Stop the music after a while, optionally fading it out first.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "Stop the music in this many minutes."
+        },
+        "fade_minutes": {
+          "name": "Fade out",
+          "description": "Turn the volume down over the last minutes. The volume is put back after the music stops."
+        }
+      }
+    },
+    "cancel_sleep_timer": {
+      "name": "Cancel sleep timer",
+      "description": "Keep the music playing.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        }
+      }
+    },
+    "run_schedule": {
+      "name": "Run schedule",
+      "description": "Start a schedule's music now.",
+      "fields": {
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker)."
+        },
+        "schedule": {
+          "name": "Schedule",
+          "description": "The schedule's name or ID."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "profile_not_found": {
+      "message": "No Media Mgmt profile with ID {profile_id}."
+    },
+    "profile_not_loaded": {
+      "message": "The Media Mgmt profile {profile} isn't loaded."
+    },
+    "not_allowed": {
+      "message": "You don't have access to Media Mgmt. An admin can give you access in the Media Mgmt sidebar app, under Access."
+    },
+    "nothing_playing": {
+      "message": "Nothing is playing on this speaker."
+    },
+    "nothing_to_block": {
+      "message": "What's playing has no {kind} to block."
+    },
+    "schedule_not_found": {
+      "message": "No schedule called {schedule}."
+    }
+  },
+  "selector": {
+    "limit_action": {
+      "options": {
+        "pause": "Pause the music",
+        "stop": "Stop the music",
+        "turn_off": "Turn the speaker off"
+      }
+    },
+    "filter_action": {
+      "options": {
+        "skip": "Skip to the next song",
+        "pause": "Pause the music",
+        "stop": "Stop the music"
+      }
+    },
+    "block_kind": {
+      "options": {
+        "track": "Song",
+        "artist": "Artist",
+        "album": "Album",
+        "source": "App or source",
+        "keyword": "Word in a title"
+      }
+    }
+  }
+}

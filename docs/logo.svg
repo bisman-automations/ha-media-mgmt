@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Media Mgmt: a speaker playing music, with a moon for bedtime schedules and
+       sleep timers. Same style as TV Mgmt's screen-and-lock icon. -->
+  <defs>
+    <linearGradient id="face" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4fc3f7"/>
+      <stop offset="1" stop-color="#1976d2"/>
+    </linearGradient>
+  </defs>
+  <g id="speaker">
+    <rect x="40" y="12" width="148" height="232" rx="26" fill="#263238"/>
+    <rect x="52" y="24" width="124" height="208" rx="16" fill="url(#face)"/>
+    <circle cx="114" cy="64" r="17" fill="#ffffff"/>
+    <circle cx="114" cy="64" r="7" fill="#1e88e5"/>
+    <circle cx="114" cy="158" r="52" fill="#ffffff"/>
+    <path transform="translate(75.6 119.6) scale(3.2)" fill="#1e88e5"
+          d="M12,3V13.55C11.41,13.21 10.73,13 10,13A4,4 0 0,0 6,17A4,4 0 0,0 10,21A4,4 0 0,0 14,17V7H18V3H12Z"/>
+  </g>
+  <g id="badge">
+    <circle cx="198" cy="196" r="50" fill="#ffffff"/>
+    <circle id="badge-fill" cx="198" cy="196" r="42" fill="#263238"/>
+    <!-- crescent moon -->
+    <path fill="#ffca28" d="M206,170 A28,28 0 1,0 222,214 A23,23 0 0,1 206,170 Z"/>
+    <circle cx="219" cy="178" r="3.2" fill="#ffca28"/>
+    <circle cx="228" cy="193" r="2.2" fill="#ffca28"/>
+  </g>
+</svg>

@@ -1,0 +1,49 @@
+{
+  "entity": {
+    "select": {
+      "mode": {
+        "default": "mdi:shield-search",
+        "state": { "monitor_only": "mdi:eye", "paused": "mdi:pause-circle" }
+      }
+    },
+    "switch": {
+      "music_filter": { "default": "mdi:playlist-remove", "state": { "off": "mdi:playlist-music" } },
+      "adult_mode": { "default": "mdi:account-tie", "state": { "off": "mdi:account-child" } }
+    },
+    "button": {
+      "block_current_track": { "default": "mdi:music-note-off" },
+      "block_current_artist": { "default": "mdi:account-music-outline" }
+    },
+    "sensor": {
+      "enforcement_state": {
+        "default": "mdi:shield-check",
+        "state": {
+          "warning": "mdi:timer-alert",
+          "enforcing": "mdi:music-off",
+          "paused": "mdi:pause-circle",
+          "adult_mode": "mdi:account-tie",
+          "schedule": "mdi:calendar-clock"
+        }
+      },
+      "listening_time_today": { "default": "mdi:timer-music" },
+      "time_remaining_today": { "default": "mdi:timer-outline" },
+      "extension_today": { "default": "mdi:timer-plus" },
+      "now_playing": { "default": "mdi:music" },
+      "songs_today": { "default": "mdi:playlist-music" },
+      "blocked_today": { "default": "mdi:shield-alert" },
+      "sleep_timer": { "default": "mdi:sleep" },
+      "next_schedule": { "default": "mdi:calendar-clock" }
+    }
+  },
+  "services": {
+    "grant_extension": { "service": "mdi:timer-plus" },
+    "force_block": { "service": "mdi:music-off" },
+    "unblock": { "service": "mdi:music" },
+    "reset_usage": { "service": "mdi:restore" },
+    "block_media": { "service": "mdi:playlist-remove" },
+    "unblock_media": { "service": "mdi:playlist-check" },
+    "set_sleep_timer": { "service": "mdi:sleep" },
+    "cancel_sleep_timer": { "service": "mdi:sleep-off" },
+    "run_schedule": { "service": "mdi:calendar-start" }
+  }
+}
