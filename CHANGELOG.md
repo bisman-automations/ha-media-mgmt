@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-17
+
+### Added
+
+- **Loading placeholders in the sidebar app** ([#1](https://github.com/bisman-automations/ha-media-mgmt/issues/1)). While a page loads, it shows a softly shimmering outline of what's coming: speaker cards on the dashboard, totals and a chart on Analytics, and rows elsewhere. The shimmer stays still if your device is set to reduce motion, and screen readers announce what's loading.
+
 ## [1.0.0] - 2026-10-16
 
 ### Added
@@ -60,7 +66,8 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.1.0...v0.2.0

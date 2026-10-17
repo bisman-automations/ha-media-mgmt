@@ -208,6 +208,26 @@ function describeEvent(e) {
 
 const EXPANDED_KEY = "media-mgmt-expanded";
 
+// Placeholder shaped like what's loading: "cards" (dashboard), "chart" (analytics) or "rows".
+function loading(label, shape = "rows") {
+  const bar = (w, h = 12) => `<span class="sk" style="width:${w};height:${h}px"></span>`;
+  let body;
+  if (shape === "cards") {
+    const card = `<div class="card sk-card"><div class="sk-tile"><span class="sk sk-art"></span>
+        <div class="sk-lines">${bar("40%", 10)}${bar("75%", 18)}${bar("55%")}</div></div>
+        <div class="sk-lines" style="padding:14px 16px 16px">${bar("100%", 4)}
+          <div class="sk-row"><span class="sk sk-dot"></span><span class="sk sk-dot"></span><span class="sk sk-dot"></span>${bar("50%", 6)}</div></div></div>`;
+    body = `<div class="grid">${card}${card}</div>`;
+  } else if (shape === "chart") {
+    const stat = `<div class="card stat">${bar("50%", 22)}${bar("70%", 10)}</div>`;
+    body = `<div class="stats">${stat.repeat(4)}</div><section class="card"><div class="card-body">${bar("30%", 14)}<span class="sk" style="width:100%;height:180px"></span></div></section>`;
+  } else {
+    const row = (w) => `<div class="sk-row">${bar("64px", 10)}${bar(w)}</div>`;
+    body = `<section class="card"><div class="card-body sk-lines">${["70%", "55%", "80%", "45%", "65%"].map(row).join("")}</div></section>`;
+  }
+  return `<div class="loading" role="status" aria-live="polite"><span class="sr-only">${esc(label)}</span><div aria-hidden="true">${body}</div></div>`;
+}
+
 // The volume cap right now: lower while a playing schedule limits it.
 const capOf = (p) => p.volume_cap ?? p.max_volume;
 const capLabel = (p) =>
@@ -520,7 +540,23 @@ input[type="checkbox"].check, input[type="radio"] { width: 18px; height: 18px; a
   .art { width: 84px; height: 84px; }
   .date-nav h2 { min-width: 0; font-size: 16px; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sk { display: block; border-radius: 6px; background: color-mix(in srgb, var(--primary-text-color) 9%, transparent); position: relative; overflow: hidden; }
+.sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-background-color, #fff) 55%, transparent), transparent);
+  animation: sk-shimmer 1.4s ease-in-out infinite; }
+@keyframes sk-shimmer { to { transform: translateX(100%); } }
+.sk-lines { display: grid; gap: 10px; }
+.sk-row { display: flex; gap: 12px; align-items: center; }
+.sk-card { padding-top: 16px; }
+.sk-tile { display: flex; gap: 14px; align-items: center; margin: 0 16px; padding: 14px; border-radius: 14px; min-height: 132px;
+  background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); }
+.sk-tile .sk-lines { flex: 1; }
+.sk-art { width: 96px; height: 96px; border-radius: 10px; flex: none; }
+.sk-dot { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+.stat .sk + .sk { margin-top: 8px; }
+.loading .card-body { gap: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .sk::after { animation: none; display: none; } }
 `;
 
 class MediaMgmtPanel extends HTMLElement {
@@ -848,7 +884,7 @@ class MediaMgmtPanel extends HTMLElement {
     let body;
     if (this._tab === "access") body = this._renderAccess();
     else if (this._tab === "speakers") body = this._renderSpeakers();
-    else if (this._profiles === null) body = this._error ? "" : `<p class="empty">Loading your speakers…</p>`;
+    else if (this._profiles === null) body = this._error ? "" : loading("Loading your speakers…", "cards");
     else if (!this._profiles.length)
       body = this._me?.is_admin
         ? `<div class="empty"><h2>No speakers yet</h2><p>Pick the speakers to manage, and set everything else up here.</p><p><button class="btn primary" data-tab="speakers">${icon("plus")} Add a speaker</button></p></div>`
@@ -1121,7 +1157,7 @@ class MediaMgmtPanel extends HTMLElement {
         this._loadingActivity = true;
         this._loadActivity().finally(() => (this._loadingActivity = false));
       }
-      return `${this._activityToolbar(null)}<p class="empty">Loading activity…</p>`;
+      return `${this._activityToolbar(null)}${loading("Loading activity…")}`;
     }
     const dayStart = new Date(`${a.date}T00:00:00`).getTime();
     const pos = (iso) => Math.max(0, Math.min(100, ((new Date(iso).getTime() - dayStart) / 86400000) * 100));
@@ -1195,7 +1231,7 @@ class MediaMgmtPanel extends HTMLElement {
         this._loadingAnalytics = true;
         this._loadAnalytics().finally(() => (this._loadingAnalytics = false));
       }
-      return `${this._analyticsToolbar()}<p class="empty">Loading analytics…</p>`;
+      return `${this._analyticsToolbar()}${loading("Loading analytics…", "chart")}`;
     }
     const s = data.summary;
     const one = scope !== "all";
@@ -1353,7 +1389,7 @@ class MediaMgmtPanel extends HTMLElement {
         <button data-libsort="seconds" aria-pressed="${this._libSort === "seconds"}">Most time</button>
       </div>` : ""}
     </div>`;
-    if (!lib || lib.entry_id !== this._selected) return `${toolbar}<p class="empty">Loading played music…</p>`;
+    if (!lib || lib.entry_id !== this._selected) return `${toolbar}${loading("Loading played music…")}`;
     const id = this._selected;
     const note = this._notes.block ? `<div style="margin-bottom:12px">${this._note("block")}</div>` : "";
     if (!lib.items.length) {
@@ -1715,7 +1751,7 @@ class MediaMgmtPanel extends HTMLElement {
         this._loadingSettings = true;
         this._loadSettings().finally(() => (this._loadingSettings = false));
       }
-      return `<div class="toolbar">${this._picker()}</div><p class="empty">Loading rules…</p>`;
+      return `<div class="toolbar">${this._picker()}</div>${loading("Loading rules…")}`;
     }
     const windows = d.windows
       .map((w, i) => `<div class="window">
@@ -1850,7 +1886,7 @@ class MediaMgmtPanel extends HTMLElement {
             this._render();
           });
       }
-      return `<p class="empty">Loading people…</p>`;
+      return loading("Loading people…");
     }
     const rows = d.people
       .map((u, i) => {
@@ -1905,7 +1941,7 @@ class MediaMgmtPanel extends HTMLElement {
             this._render();
           });
       }
-      return `<p class="empty">Loading speakers…</p>`;
+      return loading("Loading speakers…");
     }
     const managed = (this._profiles || [])
       .map((p) => `<div class="person">
