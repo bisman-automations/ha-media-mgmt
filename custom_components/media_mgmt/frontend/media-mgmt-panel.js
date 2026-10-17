@@ -189,7 +189,7 @@ function describeEvent(e) {
     case "reset":
       return { icon: "clock", text: "Today's time reset" };
     case "volume":
-      return { icon: "volume", tone: e.acted ? undefined : "warn", text: `Volume turned up to ${e.from}%, ${e.acted ? `turned back down to ${e.to}%` : `over the ${e.to}% cap (monitor only)`}` };
+      return { icon: "volume", tone: e.acted ? undefined : "warn", text: `Volume turned up to ${e.from}%, ${e.acted ? `turned back down to ${e.to}%` : `over the ${e.to}% cap (monitor only)`}${e.schedule ? `, the limit while ${e.schedule} plays` : ""}` };
     case "rule":
       return { icon: "shield", text: `${e.added ? "Blocked" : "Unblocked"} ${KIND_LABELS[e.kind]?.toLowerCase() ?? e.kind} “${e.value}”${by}` };
     case "schedule": {
@@ -207,6 +207,11 @@ function describeEvent(e) {
 }
 
 const EXPANDED_KEY = "media-mgmt-expanded";
+
+// The volume cap right now: lower while a playing schedule limits it.
+const capOf = (p) => p.volume_cap ?? p.max_volume;
+const capLabel = (p) =>
+  capOf(p) >= 100 ? "None" : p.volume_limit_schedule && capOf(p) < p.max_volume ? `${capOf(p)}% while ${p.volume_limit_schedule} plays` : `${capOf(p)}%`;
 
 const ICONS = {
   "chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
@@ -920,7 +925,7 @@ class MediaMgmtPanel extends HTMLElement {
               ${this._sleepBox(p)}
               <div class="panel-box">
                 <div class="head">${icon("calendar")} Schedules</div>
-                ${active ? `<div class="chip tone-info">${esc(active.name)} is playing until ${esc(hhmmLabel(active.stop))}</div>` : ""}
+                ${active ? `<div class="chip tone-info">${esc(active.name)} is playing until ${esc(hhmmLabel(active.stop))}${active.volume_limit != null ? `, up to ${active.volume_limit}% volume` : ""}</div>` : ""}
                 ${nextSched
                   ? `<div class="row"><span>Next: <strong>${esc(nextSched.name)}</strong>, ${esc(whenLabel(nextSched.next_run))}</span>
                       <button class="btn small" data-run="${esc(nextSched.id)}" data-id="${id}">${icon("play")} Play now</button></div>`
@@ -934,7 +939,7 @@ class MediaMgmtPanel extends HTMLElement {
               <dt>Songs today</dt><dd>${p.plays}</dd>
               <dt>Blocked today</dt><dd>${p.blocked_count}${p.last_blocked ? `, last ${esc(p.last_blocked)}${p.last_blocked_at ? ` at ${timeOf(p.last_blocked_at)}` : ""}` : ""}</dd>
               <dt>Extra time</dt><dd>${p.extension_minutes ? `${p.extension_minutes > 0 ? "+" : ""}${p.extension_minutes} min` : "None"}</dd>
-              <dt>Volume cap</dt><dd>${p.max_volume >= 100 ? "None" : `${p.max_volume}%`}</dd>
+              <dt>Volume cap</dt><dd>${capLabel(p)}</dd>
             </dl>
             ${p.top_artists?.length ? `<div><div class="muted" style="margin-bottom:6px">Top artists today</div><ul class="mini-list">${p.top_artists
               .map((a) => `<li><span>${esc(a.name)}</span><span class="muted">${duration(a.seconds)}</span></li>`)
@@ -1025,7 +1030,7 @@ class MediaMgmtPanel extends HTMLElement {
     const vol = attrs.volume_level != null && caps.volume
       ? `<div class="vol">${icon("volume")}<div class="vol-range">
           <input type="range" min="0" max="100" step="1" value="${Math.round(attrs.volume_level * 100)}" data-volume="${eid}" aria-label="Volume">
-          ${p.max_volume < 100 ? `<span class="cap" style="left:calc(${p.max_volume}% - 1px)" title="Volume cap ${p.max_volume}%"></span>` : ""}
+          ${capOf(p) < 100 ? `<span class="cap" style="left:calc(${capOf(p)}% - 1px)" title="${esc(capLabel(p))}"></span>` : ""}
         </div><output>${Math.round(attrs.volume_level * 100)}%</output></div>`
       : "";
     const blockButtons = media
@@ -1417,6 +1422,7 @@ class MediaMgmtPanel extends HTMLElement {
     if (s.start) {
       bits.push(this._schedWhat(s));
       if (s.volume != null) bits.push(`at ${s.volume}% volume`);
+      if (s.volume_limit != null) bits.push(`never louder than ${s.volume_limit}%`);
       if (s.shuffle) bits.push("shuffled");
     }
     const stop = s.stop ? `${s.fade_minutes ? `Fades out over ${s.fade_minutes} min, then ` : ""}${{ pause: "pauses", stop: "stops", turn_off: "turns the speaker off" }[s.stop_action]}${s.start ? "" : " whatever's playing"} at ${esc(hhmmLabel(s.stop))}.` : "";
@@ -1455,6 +1461,8 @@ class MediaMgmtPanel extends HTMLElement {
       repeat: "all",
       volume: 20,
       setVolume: true,
+      limitVolume: true,
+      volume_limit: 30,
       fade_minutes: 10,
       stop_action: "pause",
       lift_limits: true,
@@ -1472,6 +1480,8 @@ class MediaMgmtPanel extends HTMLElement {
       stop: s.stop || "20:30",
       setVolume: s.volume != null,
       volume: s.volume ?? 20,
+      limitVolume: s.volume_limit != null,
+      volume_limit: s.volume_limit ?? 30,
       content_type: s.content_type || "",
     };
   }
@@ -1575,6 +1585,11 @@ class MediaMgmtPanel extends HTMLElement {
             <span class="inline"><input type="number" min="0" max="100" step="5" data-s="volume" value="${d.volume}" ${d.setVolume ? "" : "disabled"} aria-label="Volume"> %</span>
             ${p.max_volume < 100 ? `<small>The volume cap of ${p.max_volume}% still applies.</small>` : ""}
           </div>
+          ${d.hasStop ? `<div class="field">
+            <label class="radio"><input type="checkbox" class="check" data-s="limitVolume" ${d.limitVolume ? "checked" : ""}> Limit the volume to</label>
+            <span class="inline"><input type="number" min="5" max="100" step="5" data-s="volume_limit" value="${d.volume_limit}" ${d.limitVolume ? "" : "disabled"} aria-label="Volume limit"> %</span>
+            <small>While this schedule plays, turning the speaker up past this turns it straight back down. The usual cap comes back when it stops.</small>
+          </div>` : ""}
           <div class="field"><span class="label">Order</span>
             <label class="radio"><input type="checkbox" class="check" data-s="shuffle" ${d.shuffle ? "checked" : ""} ${caps.shuffle === false ? "" : ""}> Shuffle</label>
             <label class="radio">Repeat <select data-s="repeat">${[["off", "Off"], ["all", "All"], ["one", "One song"]].map(([v, l]) => `<option value="${v}" ${d.repeat === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -1603,6 +1618,11 @@ class MediaMgmtPanel extends HTMLElement {
     if (!d.hasStart && !d.hasStop) return this._showError("Give the schedule a start time, a stop time, or both.");
     if (!d.days.length) return this._showError("Pick at least one day.");
     if (d.hasStart && d.play_kind !== "resume" && !String(d.play_value).trim()) return this._showError("Say what to play.");
+    if (d.hasStart && d.hasStop && d.limitVolume) {
+      const limit = Number(d.volume_limit);
+      if (!Number.isInteger(limit) || limit < 5 || limit > 100) return this._showError("Limit the volume to a whole number from 5 to 100%.");
+      if (d.setVolume && Number(d.volume) > limit) return this._showError(`The starting volume (${d.volume}%) is above the limit (${limit}%). Lower it, or raise the limit.`);
+    }
     const schedule = {
       id: d.id || null,
       name: d.name.trim() || "Schedule",
@@ -1616,6 +1636,7 @@ class MediaMgmtPanel extends HTMLElement {
       shuffle: d.shuffle,
       repeat: d.repeat,
       volume: d.hasStart && d.setVolume ? Number(d.volume) : null,
+      volume_limit: d.hasStart && d.hasStop && d.limitVolume ? Number(d.volume_limit) : null,
       fade_minutes: d.hasStop ? Number(d.fade_minutes) || 0 : 0,
       stop_action: d.stop_action,
       lift_limits: d.lift_limits,
@@ -2113,7 +2134,7 @@ class MediaMgmtPanel extends HTMLElement {
       d[key] = value;
       if (key === "play_kind") d.play_value = "";
       // Redraw where the form's shape changes.
-      if (["hasStart", "hasStop", "play_kind", "setVolume"].includes(key)) this._render();
+      if (["hasStart", "hasStop", "play_kind", "setVolume", "limitVolume"].includes(key)) this._render();
     }
   }
 

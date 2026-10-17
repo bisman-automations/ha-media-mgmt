@@ -90,6 +90,7 @@ A schedule plays music at a set time on the days you pick, and stops it at a set
 | Start music at | 19:30 |
 | Play | An artist, playlist, album, song, a favourite or source (such as a Sonos favourite or radio station), a media ID, or whatever played last |
 | Set the volume to | 20% |
+| Limit the volume to | 30%. While the schedule plays, turning the speaker up past this turns it straight back down. The speaker's usual cap comes back when it stops. Each schedule has its own limit, or none. |
 | Shuffle and repeat | Shuffle, repeat all |
 | Stop music at | 20:30 |
 | Fade out before stopping | 10 minutes. The volume goes down slowly, and comes back up after the music stops, ready for next time. |

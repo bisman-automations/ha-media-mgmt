@@ -190,6 +190,9 @@ def profile_summary(manager: MediaManager) -> dict[str, Any]:
         "extension_minutes": s.extension_minutes,
         "warn_minutes": manager.warn_minutes,
         "max_volume": manager.max_volume,
+        # The cap right now: lower while a playing schedule limits the volume.
+        "volume_cap": manager.volume_cap,
+        "volume_limit_schedule": (sched.name if (sched := manager.volume_limit_schedule()) else None),
         "blocked_count": s.blocked_count,
         "last_blocked": s.last_blocked,
         "last_blocked_at": s.last_blocked_at,
@@ -465,6 +468,7 @@ SCHEDULE_FIELDS = vol.Schema(
         vol.Optional("shuffle", default=True): bool,
         vol.Optional("repeat", default="all"): vol.In(["off", "all", "one"]),
         vol.Optional("volume"): vol.Any(None, vol.All(int, vol.Range(min=0, max=100))),
+        vol.Optional("volume_limit"): vol.Any(None, vol.All(int, vol.Range(min=5, max=100))),
         vol.Optional("fade_minutes", default=0): vol.All(int, vol.Range(min=0, max=60)),
         vol.Optional("stop_action", default="pause"): vol.In(["pause", "stop", "turn_off"]),
         vol.Optional("lift_limits", default=True): bool,

@@ -366,16 +366,33 @@ class MediaManager:
 
     # ---- decisions ---------------------------------------------------------------
 
-    def _active_schedule(self, now: datetime) -> Schedule | None:
-        """A schedule this profile started, still inside its time, that lifts limits."""
+    def _playing_schedules(self, now: datetime) -> list[Schedule]:
+        """Schedules this profile started that are still inside their time."""
+        playing = []
         for sched in self.schedules:
-            if not (sched.enabled and sched.lift_limits):
+            if not sched.enabled:
                 continue
             run = self.state.schedule_runs.get(sched.id, {})
             for occ in sched.occurrences(now):
                 if occ.contains(now) and run.get("started") == occ.key and run.get("stopped") != occ.key:
-                    return sched
-        return None
+                    playing.append(sched)
+                    break
+        return playing
+
+    def _active_schedule(self, now: datetime) -> Schedule | None:
+        """A playing schedule that lifts the limits."""
+        return next((s for s in self._playing_schedules(now) if s.lift_limits), None)
+
+    def volume_limit_schedule(self, now: datetime | None = None) -> Schedule | None:
+        """The playing schedule with the lowest volume limit, if any has one."""
+        limited = [s for s in self._playing_schedules(now or dt_util.now()) if s.volume_limit is not None]
+        return min(limited, key=lambda s: s.volume_limit) if limited else None
+
+    @property
+    def volume_cap(self) -> int:
+        """The highest the volume may go right now: the speaker's cap, or lower while a schedule limits it."""
+        sched = self.volume_limit_schedule()
+        return min(self.max_volume, sched.volume_limit) if sched else self.max_volume
 
     @callback
     def _recompute(self, *, fire_events: bool = True) -> None:
@@ -556,7 +573,7 @@ class MediaManager:
 
     @callback
     def _enforce_volume(self) -> None:
-        cap = self.max_volume
+        cap = self.volume_cap
         volume = self.player.volume
         if cap >= 100 or volume is None or self._fade:
             return
@@ -571,7 +588,9 @@ class MediaManager:
         acted = self._enforcing()
         if not self._last_volume_log or now - self._last_volume_log > VOLUME_LOG_EVERY:
             self._last_volume_log = now
-            self._log(act.EV_VOLUME, **{"from": round(volume * 100), "to": cap, "acted": acted})
+            limited_by = self.volume_limit_schedule()
+            schedule = limited_by.name if limited_by and limited_by.volume_limit < self.max_volume else None
+            self._log(act.EV_VOLUME, **{"from": round(volume * 100), "to": cap, "acted": acted, "schedule": schedule})
         if acted:
             self.hass.async_create_task(self.player.async_set_volume(cap / 100))
 
@@ -657,7 +676,7 @@ class MediaManager:
         self.state.fade_restore = None
         self.store.schedule_save()
         if level is not None:
-            cap = self.max_volume / 100
+            cap = self.volume_cap / 100
             self.hass.async_create_task(self.player.async_set_volume(min(level, cap)))
 
     @callback
@@ -743,7 +762,7 @@ class MediaManager:
         if player.is_on is False:
             await player.async_turn_on()
         if sched.volume is not None and player.supports(F.VOLUME_SET):
-            await player.async_set_volume(min(sched.volume, self.max_volume) / 100)
+            await player.async_set_volume(min(sched.volume, sched.volume_limit or 100, self.max_volume) / 100)
         ok, detail = await self._play(sched)
         if ok:
             if sched.play_kind != PLAY_SOURCE:

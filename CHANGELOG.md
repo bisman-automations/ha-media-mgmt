@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
+### Added
+
+- **Limit the volume during a schedule.** Each schedule can have its own volume limit, such as 30% for bedtime music. While it plays, turning the speaker up past the limit turns it straight back down; when it stops, the speaker's usual cap is back. The starting volume never goes above the limit.
+  - The dashboard shows the limit on the volume slider and in the speaker's details ("30% while Bedtime music plays"), and the activity log says when it turned the volume back down.
+  - New schedules start with a 30% limit. Schedules you already have don't get one until you set it.
+
 ## [0.2.0] - 2026-10-16
 
 ### Changed
@@ -42,6 +50,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bisman-automations/ha-media-mgmt/releases/tag/v0.1.0

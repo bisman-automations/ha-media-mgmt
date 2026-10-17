@@ -139,3 +139,41 @@ async def test_schedule_repeats_every_night(hass: HomeAssistant, freezer, calls)
         assert manager.state.schedule_runs[sched.id] == {"started": day, "stopped": day}
         set_speaker(hass, state="paused", title="Lullaby", artist="Brahms", volume=0.5)
         await tick(hass, freezer)
+
+
+async def test_schedule_limits_the_volume_while_it_plays(hass: HomeAssistant, freezer, calls) -> None:
+    """Bedtime music can't be turned up past its limit, until the schedule stops."""
+    freezer.move_to(FRIDAY_EVENING)  # 19:44
+    set_speaker(hass, state="idle", title=None, volume=0.2)
+    entry = await setup(hass)
+    manager = entry.runtime_data
+    manager.save_schedule({
+        "name": "Bedtime music", "days": [4], "start": "19:45", "stop": "19:55",
+        "play_kind": "source", "play_value": "Bedtime favourites", "volume": 50, "volume_limit": 30,
+    })
+    for _ in range(2):
+        await tick(hass, freezer)
+    # The starting volume is held to the limit.
+    assert calls["volume_set"][-1].data["volume_level"] == 0.3
+    assert manager.volume_cap == 30
+
+    # Someone turns it up: straight back down to 30%.
+    set_speaker(hass, title="Lullaby", artist="Brahms", volume=0.8)
+    await hass.async_block_till_done()
+    assert calls["volume_set"][-1].data["volume_level"] == 0.3
+
+    # What the sidebar app shows (its websocket login doesn't work under a frozen clock).
+    from custom_components.media_mgmt.websocket import profile_summary
+
+    profile = profile_summary(manager)
+    assert profile["volume_cap"] == 30 and profile["volume_limit_schedule"] == "Bedtime music"
+    assert profile["max_volume"] == 100
+
+    # After it stops, the usual cap (none) is back.
+    freezer.move_to("2026-10-16 19:55:05-07:00")
+    await tick(hass, freezer, 1)
+    assert manager.volume_cap == 100
+    count = len(calls["volume_set"])
+    set_speaker(hass, title="Lullaby", artist="Brahms", volume=0.8)
+    await hass.async_block_till_done()
+    assert len(calls["volume_set"]) == count

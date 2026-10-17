@@ -11,6 +11,7 @@ A schedule is stored as a dict:
       "play_kind": "artist", "play_value": "Lullaby Band", "content_type": null,
       "shuffle": true, "repeat": "all",
       "volume": 20,                            # percent, or null to leave it
+      "volume_limit": 30,                      # percent: can't go louder while it plays, or null
       "fade_minutes": 10,                      # fade out before the stop time
       "stop_action": "pause",                  # pause / stop / turn_off
       "lift_limits": true,                     # play through limits and quiet windows
@@ -109,6 +110,7 @@ class Schedule:
     shuffle: bool = True
     repeat: str = "all"
     volume: int | None = None
+    volume_limit: int | None = None  # can't be turned up past this while it plays
     fade_minutes: int = 0
     stop_action: str = "pause"
     lift_limits: bool = True
@@ -137,6 +139,11 @@ class Schedule:
             raise ValueError("say what to play at the start time")
         volume = raw.get("volume")
         volume = None if volume in (None, "") else max(0, min(100, int(volume)))
+        limit = raw.get("volume_limit")
+        # Only a schedule with a start and a stop time is ever "playing".
+        limit = None if limit in (None, "") or start is None or stop is None else max(5, min(100, int(limit)))
+        if limit is not None and volume is not None:
+            volume = min(volume, limit)
         fade = max(0, min(MAX_FADE, int(raw.get("fade_minutes") or 0))) if stop else 0
         repeat = raw.get("repeat") or "all"
         if repeat not in REPEAT_MODES:
@@ -157,6 +164,7 @@ class Schedule:
             shuffle=bool(raw.get("shuffle", True)),
             repeat=repeat,
             volume=volume,
+            volume_limit=limit,
             fade_minutes=fade,
             stop_action=stop_action,
             lift_limits=bool(raw.get("lift_limits", True)),
@@ -176,6 +184,7 @@ class Schedule:
             "shuffle": self.shuffle,
             "repeat": self.repeat,
             "volume": self.volume,
+            "volume_limit": self.volume_limit,
             "fade_minutes": self.fade_minutes,
             "stop_action": self.stop_action,
             "lift_limits": self.lift_limits,

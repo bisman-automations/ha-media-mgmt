@@ -174,3 +174,18 @@ def test_daily_summary() -> None:
     assert s["hours"][19] == 1800 and s["recorded_days"] == 1
     merged = merge_series([series, series])
     assert merged[-2]["artists"]["X"] == 2400 and merged[-2]["plays"] == 16
+
+
+def test_schedule_volume_limit():
+    from media_mgmt_pure.schedules import Schedule
+
+    s = Schedule.from_dict({"days": [0], "start": "19:30", "stop": "20:30", "play_value": "Brahms", "volume": 50, "volume_limit": 30})
+    assert s.volume_limit == 30
+    assert s.volume == 30  # never starts above its own limit
+    assert s.as_dict()["volume_limit"] == 30
+    # Only a schedule with both times is ever "playing", so a limit needs both.
+    assert Schedule.from_dict({"days": [0], "start": "19:30", "play_value": "Brahms", "volume_limit": 30}).volume_limit is None
+    assert Schedule.from_dict({"days": [0], "stop": "20:30", "volume_limit": 30}).volume_limit is None
+    assert Schedule.from_dict({"days": [0], "start": "19:30", "stop": "20:30", "play_value": "x", "volume_limit": 1}).volume_limit == 5
+    # Schedules saved before 0.3.0 have no limit.
+    assert Schedule.from_dict({"days": [0], "start": "19:30", "stop": "20:30", "play_value": "x"}).volume_limit is None
