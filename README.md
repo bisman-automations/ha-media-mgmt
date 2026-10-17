@@ -57,13 +57,13 @@ The speaker needs to be set up in Home Assistant already. Everything else is set
 Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins, and for any parents you give access to. Every setting lives here, so it's the one place to manage your speakers. It needs no add-on and works in the browser and the Companion app.
 
 <p>
-<img src="docs/images/panel-dashboard.png" alt="Dashboard: a speaker playing Clair de Lune, with playback controls, Block song and Block artist, listening time, a sleep timer and the next schedule" width="260">
+<img src="docs/images/panel-dashboard.png" alt="Dashboard: speakers collapsed to just the player, each with playback controls, volume and its listening time" width="260">
 <img src="docs/images/panel-schedule.png" alt="Schedule editor: start music at 7:30 PM, stop at 8:30 PM, play an artist picked from those played on this speaker before" width="260">
 </p>
 
 *Screenshots use sample data.*
 
-- **Dashboard.** Every speaker at a glance:
+- **Dashboard.** Every speaker at a glance. Each one starts collapsed to just the player (what's playing, play/pause, skip and volume) with its listening time underneath; tap that line to open the rest. Speakers you open stay open on that device. Opened, a speaker shows:
   - what's playing, with artwork, progress, play/pause, skip and volume (with the volume cap marked)
   - **Block song** and **Block artist** for whatever's playing
   - listening time used and left, and time from schedules

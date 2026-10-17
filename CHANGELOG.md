@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+### Changed
+
+- **Speakers on the dashboard collapse to just the player,** and start collapsed: artwork, what's playing, progress, play/pause, skip and volume, with a line underneath showing listening time and any schedule or sleep timer. Tap it to open the rest. Each speaker you open stays open on that device.
+
+### Fixed
+
+- **Ready for Home Assistant 2027.8.** Media Mgmt no longer passes `via_device` for its device on Home Assistant 2026.8 and newer, which logged a deprecation warning from 2026.10.
+- A schedule test could fail depending on the order Home Assistant runs timers in.
+- The repository now has a license, which HACS requires.
+
 ## [0.1.0] - 2026-10-16
 
 First release.
@@ -30,5 +42,6 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bisman-automations/ha-media-mgmt/releases/tag/v0.1.0

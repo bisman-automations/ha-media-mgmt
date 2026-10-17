@@ -206,7 +206,10 @@ function describeEvent(e) {
   }
 }
 
+const EXPANDED_KEY = "media-mgmt-expanded";
+
 const ICONS = {
+  "chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   play: "M8,5.14V19.14L19,12.14L8,5.14Z",
   pause: "M14,19H18V5H14M6,19H10V5H6V19Z",
   stop: "M18,18H6V6H18V18Z",
@@ -293,6 +296,17 @@ small.muted { font-size: 13px; }
 
 /* Speaker card */
 .speaker-card { container: spk / inline-size; }
+.grid { align-items: start; }
+.speaker-card.collapsed .tile-wrap { padding-bottom: 4px; }
+.speaker-card.collapsed .tile-block { display: none; }
+.expand { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px;
+  padding: 10px 16px; border: 0; border-top: 1px solid var(--divider-color); background: none; cursor: pointer;
+  color: var(--secondary-text-color); font-size: 14px; text-align: left; }
+.expand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.expand:hover { background: color-mix(in srgb, var(--primary-color) 6%, transparent); }
+.expand:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+.expand .icon { transition: transform .15s; }
+.expand[aria-expanded="true"] .icon { transform: rotate(180deg); }
 .spk-layout { display: grid; }
 @container spk (min-width: 760px) {
   .spk-layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
@@ -524,6 +538,25 @@ class MediaMgmtPanel extends HTMLElement {
     this._notes = {};
     this._error = null;
     this._busy = false;
+    // Speakers opened on the dashboard. Collapsed (just the player) by default;
+    // remembered on this device.
+    this._expanded = new Set();
+    try {
+      this._expanded = new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY) || "[]"));
+    } catch (err) {
+      /* storage unavailable: everything starts collapsed */
+    }
+  }
+
+  _toggleExpanded(id) {
+    if (this._expanded.has(id)) this._expanded.delete(id);
+    else this._expanded.add(id);
+    try {
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify([...this._expanded]));
+    } catch (err) {
+      /* not remembered, still works */
+    }
+    this._render();
   }
 
   set hass(hass) {
@@ -861,10 +894,25 @@ class MediaMgmtPanel extends HTMLElement {
     const adultOn = p.state === "adult_mode" || !!p.adult_mode_until;
     const nextSched = (p.schedules || []).filter((s) => s.enabled && s.next_run).sort((a, b) => a.next_run.localeCompare(b.next_run))[0];
     const active = (p.schedules || []).find((s) => s.active);
+    const open = this._expanded.has(id);
+    // Collapsed: just the player, with a one-line summary on the button that opens the rest.
+    const summary = [
+      limit ? `${duration(p.used_seconds)} of ${duration(limit * 60)}` : `${duration(p.used_seconds)} today`,
+      active ? `${active.name} until ${hhmmLabel(active.stop)}` : p.sleep_until ? `Sleep timer ${timeOf(p.sleep_until)}` : "",
+    ].filter(Boolean).join(" · ");
+    const toggle = `<button class="expand" data-expand="${id}" aria-expanded="${open}" aria-controls="more-${id}">
+        <span>${open ? "Show less" : esc(summary)}</span>${icon("chevron-down")}</button>`;
+    if (!open) {
+      return `
+      <section class="card speaker-card collapsed" aria-label="${esc(p.name)}">
+        <div class="tile-wrap" id="np-${id}">${this._tile(p)}</div>
+        ${toggle}
+      </section>`;
+    }
 
     return `
       <section class="card speaker-card" aria-label="${esc(p.name)}">
-        <div class="spk-layout">
+        <div class="spk-layout" id="more-${id}">
           <div class="col">
             <div class="tile-wrap" id="np-${id}">${this._tile(p)}</div>
             <div class="card-body">
@@ -917,6 +965,7 @@ class MediaMgmtPanel extends HTMLElement {
             ${this._entityLinks(p)}
           </div>
         </div>
+        ${toggle}
       </section>`;
   }
 
@@ -980,7 +1029,7 @@ class MediaMgmtPanel extends HTMLElement {
         </div><output>${Math.round(attrs.volume_level * 100)}%</output></div>`
       : "";
     const blockButtons = media
-      ? `<div class="row">
+      ? `<div class="row tile-block">
           ${blocked ? `<span class="chip tone-bad">Blocked: ${esc(KIND_LABELS[blocked.kind])} “${esc(blocked.rule)}”</span>` : ""}
           <button class="btn small" data-block="track" data-value="${esc(trackEntry(media.title, media.artist))}" data-id="${id}">${icon("block")} Block song</button>
           ${media.artist ? `<button class="btn small" data-block="artist" data-value="${esc(media.artist)}" data-id="${id}">${icon("block")} Block ${esc(media.artist)}</button>` : ""}
@@ -1873,6 +1922,10 @@ class MediaMgmtPanel extends HTMLElement {
       }
       if (ds.tab !== "schedules") this._schedEdit = null;
       this._render();
+      return;
+    }
+    if (ds.expand) {
+      this._toggleExpanded(ds.expand);
       return;
     }
     if (ds.playValue !== undefined && this._schedEdit) {

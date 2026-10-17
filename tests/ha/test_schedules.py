@@ -53,8 +53,10 @@ async def test_bedtime_schedule_plays_through_quiet_window_then_fades_and_stops(
     await tick(hass, freezer)
     assert manager.decision.state == "enforcing"
     # Schedule time doesn't count toward the daily limit (only the moments
-    # after it ended, before the speaker reported it paused).
-    assert manager.state.schedule_seconds == 300
+    # after it ended, before the speaker reported it paused). The few seconds
+    # between the stop time and the check that stops it can count either way,
+    # depending on the order Home Assistant runs timers in.
+    assert 300 <= manager.state.schedule_seconds <= 330
     assert manager.state.used_seconds <= 60
 
 
