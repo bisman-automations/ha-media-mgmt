@@ -234,6 +234,12 @@ def _register_services(hass: HomeAssistant) -> None:
                 translation_key="schedule_not_found",
                 translation_placeholders={"schedule": wanted},
             )
+        if sched.limit_only:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="schedule_limit_only",
+                translation_placeholders={"schedule": sched.name},
+            )
         await manager.async_start_schedule(sched, by=await _user_name(hass, call), manual=True)
 
     register = hass.services.async_register

@@ -17,6 +17,9 @@ A schedule is stored as a dict:
       "lift_limits": true,                     # play through limits and quiet windows
     }
 
+With "play_kind": "none" a schedule plays and stops nothing: between its
+start and stop times it only limits the volume (an early-morning limit, say).
+
 A run belongs to the day it starts on: with a stop time before the start
 time it stops the next morning. With only a stop time a schedule is a
 nightly sleep timer: whatever is playing then fades out and stops.
@@ -37,7 +40,8 @@ PLAY_TRACK = "track"
 PLAY_SOURCE = "source"  # a source or favourite on the speaker, e.g. a Sonos favourite
 PLAY_CONTENT = "content"  # a media content ID (URI) and type
 PLAY_RESUME = "resume"  # press play on whatever played last
-PLAY_KINDS = [PLAY_ARTIST, PLAY_PLAYLIST, PLAY_ALBUM, PLAY_TRACK, PLAY_SOURCE, PLAY_CONTENT, PLAY_RESUME]
+PLAY_NONE = "none"  # play nothing: only limit the volume between the start and stop times
+PLAY_KINDS = [PLAY_ARTIST, PLAY_PLAYLIST, PLAY_ALBUM, PLAY_TRACK, PLAY_SOURCE, PLAY_CONTENT, PLAY_RESUME, PLAY_NONE]
 
 STOP_ACTIONS = ["pause", "stop", "turn_off"]
 REPEAT_MODES = ["off", "all", "one"]
@@ -135,7 +139,13 @@ class Schedule:
         if kind not in PLAY_KINDS:
             raise ValueError(f"unknown thing to play {kind!r}")
         value = " ".join(str(raw.get("play_value") or "").split())
-        if start is not None and kind != PLAY_RESUME and not value:
+        if kind == PLAY_NONE:
+            # A volume limit for a stretch of time: it plays and stops nothing.
+            if start is None or stop is None:
+                raise ValueError("a volume limit needs a start and a stop time")
+            if raw.get("volume_limit") in (None, ""):
+                raise ValueError("say what to limit the volume to")
+        elif start is not None and kind != PLAY_RESUME and not value:
             raise ValueError("say what to play at the start time")
         volume = raw.get("volume")
         volume = None if volume in (None, "") else max(0, min(100, int(volume)))
@@ -145,6 +155,8 @@ class Schedule:
         if limit is not None and volume is not None:
             volume = min(volume, limit)
         fade = max(0, min(MAX_FADE, int(raw.get("fade_minutes") or 0))) if stop else 0
+        if kind == PLAY_NONE:
+            value, volume, fade = "", None, 0
         repeat = raw.get("repeat") or "all"
         if repeat not in REPEAT_MODES:
             raise ValueError(f"unknown repeat mode {repeat!r}")
@@ -167,8 +179,14 @@ class Schedule:
             volume_limit=limit,
             fade_minutes=fade,
             stop_action=stop_action,
-            lift_limits=bool(raw.get("lift_limits", True)),
+            # Only music a schedule plays itself gets through the limits.
+            lift_limits=bool(raw.get("lift_limits", True)) and kind != PLAY_NONE,
         )
+
+    @property
+    def limit_only(self) -> bool:
+        """Plays and stops nothing: only limits the volume during its time."""
+        return self.play_kind == PLAY_NONE
 
     def as_dict(self) -> dict[str, Any]:
         return {

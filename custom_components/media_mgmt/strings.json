@@ -368,6 +368,9 @@
     },
     "schedule_not_found": {
       "message": "No schedule called {schedule}."
+    },
+    "schedule_limit_only": {
+      "message": "{schedule} only limits the volume, so there's nothing to play."
     }
   },
   "selector": {

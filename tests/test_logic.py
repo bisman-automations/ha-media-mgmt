@@ -189,3 +189,17 @@ def test_schedule_volume_limit():
     assert Schedule.from_dict({"days": [0], "start": "19:30", "stop": "20:30", "play_value": "x", "volume_limit": 1}).volume_limit == 5
     # Schedules saved before 0.3.0 have no limit.
     assert Schedule.from_dict({"days": [0], "start": "19:30", "stop": "20:30", "play_value": "x"}).volume_limit is None
+
+
+def test_volume_limit_only_schedule():
+    import pytest
+    from media_mgmt_pure.schedules import Schedule
+
+    s = Schedule.from_dict({"days": [0], "start": "06:00", "stop": "08:00", "play_kind": "none", "volume_limit": 20, "volume": 50, "lift_limits": True, "fade_minutes": 10})
+    assert s.limit_only and s.volume_limit == 20
+    assert s.volume is None and s.fade_minutes == 0 and s.play_value == ""
+    assert s.lift_limits is False  # plays nothing, so it lifts nothing
+    with pytest.raises(ValueError):
+        Schedule.from_dict({"days": [0], "start": "06:00", "play_kind": "none", "volume_limit": 20})
+    with pytest.raises(ValueError):
+        Schedule.from_dict({"days": [0], "start": "06:00", "stop": "08:00", "play_kind": "none"})

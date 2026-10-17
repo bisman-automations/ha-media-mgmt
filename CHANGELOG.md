@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-16
+
+### Added
+
+- **Volume limits:** a schedule that plays nothing and only limits the volume between two times, such as 20% from 6:00 to 8:00 on school mornings. Turning the speaker up past it turns it straight back down; nothing is started or stopped, and the daily limit and quiet windows still apply.
+  - Add one with **Add volume limit** under **Schedules**, or pick **Only limit the volume** in any schedule.
+  - It's on whenever the clock is inside its times, including right after it's saved or after Home Assistant restarts.
+  - The dashboard shows it while it's on ("Early morning: volume up to 20% until 8:00 AM"), and the activity log notes when it starts and ends.
+  - `media_mgmt_schedule` events have `limit_started` and `limit_ended` actions. `run_schedule` and **Play now** don't apply to it, since it has nothing to play.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added
@@ -50,7 +60,8 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bisman-automations/ha-media-mgmt/releases/tag/v0.1.0

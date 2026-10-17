@@ -73,7 +73,7 @@ Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins,
 - **Activity.** A 24-hour strip of when music played, coloured by artist, and a log of every song, block, limit, schedule, sleep timer and change, with **Block** next to each song. Step back through past days.
 - **Analytics.** Music per day against the daily limit, the hours music plays, and top artists, songs, albums and apps over 7, 30 or 90 days. Pick a speaker, or **All speakers** for the whole house. Block an artist or song straight from the charts.
 - **Played music.** Every song the speaker has played (the most recent 3000), searchable, by most recent, most played or most time, or grouped by artist. Block or unblock songs and artists, or tap **Schedule** to play an artist at bedtime.
-- **Schedules.** Add, edit, turn on and off, try out and delete schedules.
+- **Schedules.** Add, edit, turn on and off, try out and delete schedules and [volume limits](#volume-limits).
 - **Rules.** Daily listening time, warning time, quiet windows, what happens when music isn't allowed, the list of blocked music (add or remove anything), what happens when blocked music plays, the volume cap, and spoken warnings.
 - **Speakers** (admins). Add a speaker, or stop managing one. Removing a speaker deletes its history, rules and schedules; the speaker itself isn't touched.
 - **Access** (admins). Who besides admins can use Media Mgmt.
@@ -107,6 +107,19 @@ Leave out the start time for a nightly sleep timer that stops whatever's playing
 - **A media ID** (such as a `spotify:playlist:…` URI or a stream URL) is passed straight to the speaker's integration.
 
 Use **Play now** to try a schedule out. If a schedule can't play, the activity log and the `media_mgmt_schedule` event say why.
+
+### Volume limits
+
+A volume limit is a schedule that plays nothing. Between its start and end times, on the days you pick, the speaker can't be turned up past the limit: turn it up and it goes straight back down. Nothing is started or stopped, and the daily limit and quiet windows still apply. For example, early mornings:
+
+| Setting | Example |
+| --- | --- |
+| Days | School nights, every day, or any days |
+| Limit starts at | 06:00 |
+| Limit ends at | 08:00 |
+| Limit the volume to | 20% |
+
+Add one with **Add volume limit** under **Schedules**, or pick **Only limit the volume** in any schedule. It takes effect as soon as it's saved if it's already inside its times, and after a restart. If the speaker's own volume cap is lower, that still applies. The dashboard shows a limit while it's on.
 
 ## Blocked music
 
@@ -192,7 +205,7 @@ data:
 | `media_mgmt_media_blocked` | Blocked music started. Includes `title`, `artist`, `album`, `source`, the `rule_kind` and `rule` it broke, the `action` and whether it `acted` (false in monitor-only mode). |
 | `media_mgmt_warning` | Listening time is about to run out. Includes `remaining_minutes`. |
 | `media_mgmt_enforcement_changed` | The enforcement state changed. Includes `state`, `previous_state`, `reason`, `quiet_window` and `schedule`. |
-| `media_mgmt_schedule` | A schedule `started`, `stopped` or `failed`, with `schedule` and `detail`. |
+| `media_mgmt_schedule` | A schedule `started`, `stopped` or `failed`, or a volume limit `limit_started` or `limit_ended`, with `schedule` and `detail`. |
 
 For example, to get a phone notification when blocked music is skipped:
 

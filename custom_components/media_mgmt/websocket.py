@@ -521,6 +521,9 @@ async def ws_schedule_run(hass: HomeAssistant, connection, msg) -> None:
     if (sched := manager.schedule_by_id(msg["schedule_id"])) is None:
         connection.send_error(msg["id"], "not_found", "Schedule not found")
         return
+    if sched.limit_only:
+        connection.send_error(msg["id"], "not_supported", f"{sched.name} only limits the volume, so there's nothing to play")
+        return
     ok = await manager.async_start_schedule(sched, by=_by(connection), manual=True)
     last = next((e for e in reversed(manager.activity.events) if e["type"] == "schedule"), {})
     connection.send_result(msg["id"], {"ok": ok, "detail": last.get("detail")})

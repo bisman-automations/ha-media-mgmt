@@ -374,7 +374,11 @@ class MediaManager:
                 continue
             run = self.state.schedule_runs.get(sched.id, {})
             for occ in sched.occurrences(now):
-                if occ.contains(now) and run.get("started") == occ.key and run.get("stopped") != occ.key:
+                if not occ.contains(now):
+                    continue
+                # A volume limit holds for its whole time, even if Home Assistant
+                # restarted or it was made partway through.
+                if sched.limit_only or (run.get("started") == occ.key and run.get("stopped") != occ.key):
                     playing.append(sched)
                     break
         return playing
@@ -705,6 +709,9 @@ class MediaManager:
                 continue
             run = self.state.schedule_runs.setdefault(sched.id, {})
             for occ in sched.occurrences(now):
+                if sched.limit_only:
+                    self._check_limit_window(sched, occ, run, now)
+                    continue
                 if occ.stop_due(now):
                     if run.get("stopped") != occ.key:
                         run["stopped"] = occ.key
@@ -720,6 +727,21 @@ class MediaManager:
                     run["started"] = occ.key
                     self.store.schedule_save()
                     self.hass.async_create_task(self.async_start_schedule(sched))
+
+    @callback
+    def _check_limit_window(self, sched: Schedule, occ, run: dict[str, str], now: datetime) -> None:
+        """A volume limit starting or ending: note it, and let the volume cap do the rest."""
+        if occ.start_due(now) and run.get("started") != occ.key:
+            run["started"] = occ.key
+            self.store.schedule_save()
+            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="limit_started", limit=sched.volume_limit)
+            self._fire_schedule(sched, "limit_started")
+            self._enforce_volume()
+        elif occ.stop_due(now) and run.get("stopped") != occ.key:
+            run["stopped"] = occ.key
+            self.store.schedule_save()
+            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="limit_ended")
+            self._fire_schedule(sched, "limit_ended")
 
     @callback
     def _schedule_stop(self, sched: Schedule) -> None:
@@ -748,6 +770,8 @@ class MediaManager:
         self, sched: Schedule, *, by: str | None = None, manual: bool = False
     ) -> bool:
         """Start a schedule's music now. Returns True if the speaker took it."""
+        if sched.limit_only:
+            raise ValueError(f"{sched.name} only limits the volume; it has no music to play")
         player = self.player
         if manual:
             # Started by hand inside its time: it lifts limits until its stop time.

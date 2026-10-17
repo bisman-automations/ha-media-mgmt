@@ -1,3 +1,4 @@
+import pytest
 from datetime import timedelta
 
 from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
@@ -177,3 +178,60 @@ async def test_schedule_limits_the_volume_while_it_plays(hass: HomeAssistant, fr
     set_speaker(hass, title="Lullaby", artist="Brahms", volume=0.8)
     await hass.async_block_till_done()
     assert len(calls["volume_set"]) == count
+
+
+async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, calls) -> None:
+    """An early-morning limit plays nothing and stops nothing; it only holds the volume down."""
+    freezer.move_to("2026-10-16 05:59:00-07:00")
+    set_speaker(hass, volume=0.6)  # already playing
+    entry = await setup(hass)
+    manager = entry.runtime_data
+    events = []
+    hass.bus.async_listen("media_mgmt_schedule", events.append)
+    sched = manager.save_schedule({
+        "name": "Early morning", "days": [4], "start": "06:00", "stop": "08:00",
+        "play_kind": "none", "volume_limit": 20,
+    })
+    assert sched.limit_only and not sched.lift_limits and sched.volume is None
+    await tick(hass, freezer)
+    assert calls["volume_set"] == []  # not yet
+
+    for _ in range(2):
+        await tick(hass, freezer)
+    assert calls["volume_set"][-1].data["volume_level"] == 0.2
+    assert [e.data["action"] for e in events] == ["limit_started"]
+    set_speaker(hass, volume=0.9)
+    await hass.async_block_till_done()
+    assert calls["volume_set"][-1].data["volume_level"] == 0.2
+    # Nothing was played, and the music wasn't stopped.
+    for service in ("play_media", "select_source", "media_play", "media_pause", "media_stop", "turn_off"):
+        assert calls[service] == [], service
+    assert manager.decision.state == "ok"
+
+    # Play now has nothing to play.
+    from homeassistant.exceptions import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "run_schedule", {"profile_id": entry.entry_id, "schedule": "Early morning"}, blocking=True)
+
+    # 08:00: the limit ends, the music keeps playing, and it can go up again.
+    freezer.move_to("2026-10-16 08:00:05-07:00")
+    await tick(hass, freezer, 1)
+    assert events[-1].data["action"] == "limit_ended"
+    assert calls["media_pause"] == [] and calls["media_stop"] == []
+    count = len(calls["volume_set"])
+    set_speaker(hass, volume=0.9)
+    await hass.async_block_till_done()
+    assert len(calls["volume_set"]) == count
+
+
+async def test_volume_limit_applies_when_made_partway_through(hass: HomeAssistant, freezer, calls) -> None:
+    freezer.move_to("2026-10-16 06:30:00-07:00")
+    set_speaker(hass, volume=0.7)
+    entry = await setup(hass)
+    entry.runtime_data.save_schedule({
+        "name": "Early morning", "days": [4], "start": "06:00", "stop": "08:00", "play_kind": "none", "volume_limit": 25,
+    })
+    await tick(hass, freezer)
+    assert entry.runtime_data.volume_cap == 25
+    assert calls["volume_set"][-1].data["volume_level"] == 0.25

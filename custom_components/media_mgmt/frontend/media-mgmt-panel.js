@@ -189,11 +189,11 @@ function describeEvent(e) {
     case "reset":
       return { icon: "clock", text: "Today's time reset" };
     case "volume":
-      return { icon: "volume", tone: e.acted ? undefined : "warn", text: `Volume turned up to ${e.from}%, ${e.acted ? `turned back down to ${e.to}%` : `over the ${e.to}% cap (monitor only)`}${e.schedule ? `, the limit while ${e.schedule} plays` : ""}` };
+      return { icon: "volume", tone: e.acted ? undefined : "warn", text: `Volume turned up to ${e.from}%, ${e.acted ? `turned back down to ${e.to}%` : `over the ${e.to}% cap (monitor only)`}${e.schedule ? `, the limit during ${e.schedule}` : ""}` };
     case "rule":
       return { icon: "shield", text: `${e.added ? "Blocked" : "Unblocked"} ${KIND_LABELS[e.kind]?.toLowerCase() ?? e.kind} “${e.value}”${by}` };
     case "schedule": {
-      const what = { started: "started", fading: `fading out over ${e.minutes} min`, stopped: "stopped the music", stop_idle: "ended (nothing was playing)", failed: "couldn't play" }[e.action] || e.action;
+      const what = { started: "started", fading: `fading out over ${e.minutes} min`, stopped: "stopped the music", stop_idle: "ended (nothing was playing)", failed: "couldn't play", limit_started: `started: volume limited to ${e.limit}%`, limit_ended: "ended: volume limit lifted" }[e.action] || e.action;
       return { icon: "calendar", tone: e.action === "failed" ? "bad" : undefined, text: `${e.name} ${what}${e.detail && e.action !== "started" ? `: ${e.detail}` : e.detail ? ` (${e.detail})` : ""}${by}` };
     }
     case "sleep":
@@ -211,7 +211,7 @@ const EXPANDED_KEY = "media-mgmt-expanded";
 // The volume cap right now: lower while a playing schedule limits it.
 const capOf = (p) => p.volume_cap ?? p.max_volume;
 const capLabel = (p) =>
-  capOf(p) >= 100 ? "None" : p.volume_limit_schedule && capOf(p) < p.max_volume ? `${capOf(p)}% while ${p.volume_limit_schedule} plays` : `${capOf(p)}%`;
+  capOf(p) >= 100 ? "None" : p.volume_limit_schedule && capOf(p) < p.max_volume ? `${capOf(p)}% during ${p.volume_limit_schedule}` : `${capOf(p)}%`;
 
 const ICONS = {
   "chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
@@ -301,6 +301,8 @@ small.muted { font-size: 13px; }
 
 /* Speaker card */
 .speaker-card { container: spk / inline-size; }
+.seg.wide { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 480px; }
+.seg.wide button { text-align: center; }
 .grid { align-items: start; }
 .speaker-card.collapsed .tile-wrap { padding-bottom: 4px; }
 .speaker-card.collapsed .tile-block { display: none; }
@@ -899,11 +901,13 @@ class MediaMgmtPanel extends HTMLElement {
     const adultOn = p.state === "adult_mode" || !!p.adult_mode_until;
     const nextSched = (p.schedules || []).filter((s) => s.enabled && s.next_run).sort((a, b) => a.next_run.localeCompare(b.next_run))[0];
     const active = (p.schedules || []).find((s) => s.active);
+    // A volume limit on right now (limits that only limit; music schedules show above).
+    const limiting = (p.schedules || []).find((s) => s.play_kind === "none" && s.name === p.volume_limit_schedule);
     const open = this._expanded.has(id);
     // Collapsed: just the player, with a one-line summary on the button that opens the rest.
     const summary = [
       limit ? `${duration(p.used_seconds)} of ${duration(limit * 60)}` : `${duration(p.used_seconds)} today`,
-      active ? `${active.name} until ${hhmmLabel(active.stop)}` : p.sleep_until ? `Sleep timer ${timeOf(p.sleep_until)}` : "",
+      active ? `${active.name} until ${hhmmLabel(active.stop)}` : limiting ? `Volume up to ${limiting.volume_limit}% until ${hhmmLabel(limiting.stop)}` : p.sleep_until ? `Sleep timer ${timeOf(p.sleep_until)}` : "",
     ].filter(Boolean).join(" · ");
     const toggle = `<button class="expand" data-expand="${id}" aria-expanded="${open}" aria-controls="more-${id}">
         <span>${open ? "Show less" : esc(summary)}</span>${icon("chevron-down")}</button>`;
@@ -926,9 +930,10 @@ class MediaMgmtPanel extends HTMLElement {
               <div class="panel-box">
                 <div class="head">${icon("calendar")} Schedules</div>
                 ${active ? `<div class="chip tone-info">${esc(active.name)} is playing until ${esc(hhmmLabel(active.stop))}${active.volume_limit != null ? `, up to ${active.volume_limit}% volume` : ""}</div>` : ""}
+                ${limiting ? `<div class="chip tone-info">${esc(limiting.name)}: volume up to ${limiting.volume_limit}% until ${esc(hhmmLabel(limiting.stop))}</div>` : ""}
                 ${nextSched
                   ? `<div class="row"><span>Next: <strong>${esc(nextSched.name)}</strong>, ${esc(whenLabel(nextSched.next_run))}</span>
-                      <button class="btn small" data-run="${esc(nextSched.id)}" data-id="${id}">${icon("play")} Play now</button></div>`
+                      ${nextSched.play_kind !== "none" ? `<button class="btn small" data-run="${esc(nextSched.id)}" data-id="${id}">${icon("play")} Play now</button>` : ""}</div>`
                   : `<span class="muted">No schedules yet.</span>`}
                 <div><button class="btn small" data-goto="schedules" data-id="${id}">${icon("calendar")} ${p.schedules?.length ? "Manage schedules" : "Add a schedule"}</button></div>
               </div>
@@ -1396,8 +1401,11 @@ class MediaMgmtPanel extends HTMLElement {
       .map((s) => this._schedCard(p, s))
       .join("");
     const intro = `<section class="card"><div class="card-body">
-      <div class="card-head"><h2>Schedules for ${esc(p.name)}</h2><button class="btn primary" data-new-schedule="${p.entry_id}">${icon("plus")} Add schedule</button></div>
+      <div class="card-head"><h2>Schedules for ${esc(p.name)}</h2><div class="row">
+        <button class="btn" data-new-limit="${p.entry_id}">${icon("volume")} Add volume limit</button>
+        <button class="btn primary" data-new-schedule="${p.entry_id}">${icon("plus")} Add schedule</button></div></div>
       <p class="muted" style="margin:0">Start music at a set time, like an artist your kids fall asleep to, and fade it out and stop it at a set time, on the nights you pick. A schedule with only a stop time is a nightly sleep timer. While a schedule plays, the daily limit and quiet windows don't stop it.</p>
+      <p class="muted" style="margin:0">A volume limit plays nothing: between its times, like early mornings, the speaker can't be turned up past the limit.</p>
       ${this._note("sched")}
     </div></section>`;
     return `<div class="toolbar">${this._picker()}</div><div class="stack">${intro}${list ? `<section class="card"><div class="card-body">${list}</div></section>` : `<div class="empty"><p>No schedules yet.</p></div>`}</div>`;
@@ -1413,30 +1421,33 @@ class MediaMgmtPanel extends HTMLElement {
       source: `Plays <strong>${v}</strong>`,
       content: `Plays <strong>${v}</strong>`,
       resume: "Resumes whatever played last",
+      none: `Limits the volume to <strong>${s.volume_limit}%</strong>. Nothing is played or stopped`,
     }[s.play_kind];
   }
 
   _schedCard(p, s) {
     const when = s.start ? `${esc(hhmmLabel(s.start))}${s.stop ? `<small>to ${esc(hhmmLabel(s.stop))}</small>` : ""}` : `${esc(hhmmLabel(s.stop))}<small>stop only</small>`;
     const bits = [];
-    if (s.start) {
+    const limitOnly = s.play_kind === "none";
+    if (limitOnly) bits.push(this._schedWhat(s));
+    else if (s.start) {
       bits.push(this._schedWhat(s));
       if (s.volume != null) bits.push(`at ${s.volume}% volume`);
       if (s.volume_limit != null) bits.push(`never louder than ${s.volume_limit}%`);
       if (s.shuffle) bits.push("shuffled");
     }
-    const stop = s.stop ? `${s.fade_minutes ? `Fades out over ${s.fade_minutes} min, then ` : ""}${{ pause: "pauses", stop: "stops", turn_off: "turns the speaker off" }[s.stop_action]}${s.start ? "" : " whatever's playing"} at ${esc(hhmmLabel(s.stop))}.` : "";
+    const stop = s.stop && !limitOnly ? `${s.fade_minutes ? `Fades out over ${s.fade_minutes} min, then ` : ""}${{ pause: "pauses", stop: "stops", turn_off: "turns the speaker off" }[s.stop_action]}${s.start ? "" : " whatever's playing"} at ${esc(hhmmLabel(s.stop))}.` : "";
     const id = p.entry_id;
     return `<div class="sched${s.enabled ? "" : " disabled"}" style="padding:12px 0;border-top:1px solid var(--divider-color)">
       <div class="when">${when}</div>
       <div>
         <h3>${esc(s.name)} ${s.active ? `<span class="chip tone-info">Playing now</span>` : ""}${!s.enabled ? `<span class="chip tone-muted">Off</span>` : ""}</h3>
         <div class="what">${bits.join(", ")}${bits.length ? "." : ""} ${stop}</div>
-        <div class="muted">${esc(daysLabel(s.days))}${s.enabled && s.next_run ? ` · next ${esc(whenLabel(s.next_run))}` : ""}${s.start && !s.lift_limits ? " · limits still apply" : ""}</div>
+        <div class="muted">${esc(daysLabel(s.days))}${s.enabled && s.next_run ? ` · next ${esc(whenLabel(s.next_run))}` : ""}${s.start && !s.lift_limits && s.play_kind !== "none" ? " · limits still apply" : ""}</div>
       </div>
       <div class="acts">
         <label class="switch" title="${s.enabled ? "Turn off" : "Turn on"}"><input type="checkbox" data-sched-enable="${esc(s.id)}" data-id="${id}" ${s.enabled ? "checked" : ""} aria-label="${esc(s.name)} on"><span></span></label>
-        ${s.start ? `<button class="btn small" data-run="${esc(s.id)}" data-id="${id}">${icon("play")} Play now</button>` : ""}
+        ${s.start && !limitOnly ? `<button class="btn small" data-run="${esc(s.id)}" data-id="${id}">${icon("play")} Play now</button>` : ""}
         <button class="btn small" data-edit-schedule="${esc(s.id)}" data-id="${id}">${icon("edit")} Edit</button>
         <button class="btn small danger" data-delete-schedule="${esc(s.id)}" data-id="${id}" aria-label="Delete ${esc(s.name)}">${icon("delete")}</button>
       </div>
@@ -1502,6 +1513,7 @@ class MediaMgmtPanel extends HTMLElement {
 
   _renderSchedEditor(p) {
     const d = this._schedEdit;
+    const limitOnly = d.play_kind === "none";
     this._ensureArtists();
     if (!this._settings || this._settings.for !== p.entry_id) {
       if (!this._loadingSettings) {
@@ -1539,11 +1551,18 @@ class MediaMgmtPanel extends HTMLElement {
     const showValue = d.play_kind !== "resume";
     const datalist = options.length ? `<datalist id="play-options">${options.map((o) => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
     return `<section class="card"><div class="card-body">
-      <div class="card-head"><h2>${d.id ? "Edit schedule" : "New schedule"}</h2></div>
+      <div class="card-head"><h2>${d.id ? (limitOnly ? "Edit volume limit" : "Edit schedule") : limitOnly ? "New volume limit" : "New schedule"}</h2></div>
       <form id="schedule" novalidate>
         <div class="form-grid">
           <div class="field"><label for="s-name">Name</label><input type="text" id="s-name" data-s="name" value="${esc(d.name)}" maxlength="60"></div>
           <label class="toggle field" style="align-self:end"><span>Turned on</span><span class="switch"><input type="checkbox" data-s="enabled" ${d.enabled ? "checked" : ""}><span></span></span></label>
+        </div>
+        <div class="field">
+          <span class="label">What it does</span>
+          <div class="seg wide" role="group" aria-label="What it does">
+            <button type="button" data-sched-mode="music" aria-pressed="${!limitOnly}">Play music</button>
+            <button type="button" data-sched-mode="limit" aria-pressed="${limitOnly}">Only limit the volume</button>
+          </div>
         </div>
         <div class="field">
           <span class="label">Days</span>
@@ -1553,15 +1572,20 @@ class MediaMgmtPanel extends HTMLElement {
         </div>
         <div class="form-grid">
           <div class="field">
-            <label class="radio"><input type="checkbox" class="check" data-s="hasStart" ${d.hasStart ? "checked" : ""}> Start music at</label>
-            <input type="time" data-s="start" value="${esc(d.start)}" ${d.hasStart ? "" : "disabled"} aria-label="Start time">
+            ${limitOnly ? `<label for="s-start">Limit starts at</label>` : `<label class="radio"><input type="checkbox" class="check" data-s="hasStart" ${d.hasStart ? "checked" : ""}> Start music at</label>`}
+            <input type="time" id="s-start" data-s="start" value="${esc(d.start)}" ${d.hasStart ? "" : "disabled"} aria-label="Start time">
           </div>
           <div class="field">
-            <label class="radio"><input type="checkbox" class="check" data-s="hasStop" ${d.hasStop ? "checked" : ""}> Stop music at</label>
-            <input type="time" data-s="stop" value="${esc(d.stop)}" ${d.hasStop ? "" : "disabled"} aria-label="Stop time">
+            ${limitOnly ? `<label for="s-stop">Limit ends at</label>` : `<label class="radio"><input type="checkbox" class="check" data-s="hasStop" ${d.hasStop ? "checked" : ""}> Stop music at</label>`}
+            <input type="time" id="s-stop" data-s="stop" value="${esc(d.stop)}" ${d.hasStop ? "" : "disabled"} aria-label="Stop time">
           </div>
         </div>
-        ${d.hasStart ? `
+        ${limitOnly ? `
+        <div class="field"><label for="s-limit">Limit the volume to</label>
+          <span class="inline"><input type="number" id="s-limit" min="5" max="100" step="5" data-s="volume_limit" value="${d.volume_limit}"> %</span>
+          <small>Between these times, turning the speaker up past this turns it straight back down. Nothing is played or stopped, and the daily limit and quiet windows still apply.${p.max_volume < 100 ? ` The speaker's ${p.max_volume}% cap still applies if it's lower.` : ""}</small>
+        </div>` : ""}
+        ${d.hasStart && !limitOnly ? `
         <div class="form-grid">
           <div class="field"><label for="s-kind">Play</label>
             <select id="s-kind" data-s="play_kind">${PLAY_KINDS.map((k) => `<option value="${k.id}" ${d.play_kind === k.id ? "selected" : ""}>${k.label}</option>`).join("")}</select></div>
@@ -1595,7 +1619,7 @@ class MediaMgmtPanel extends HTMLElement {
             <label class="radio">Repeat <select data-s="repeat">${[["off", "Off"], ["all", "All"], ["one", "One song"]].map(([v, l]) => `<option value="${v}" ${d.repeat === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
           </div>
         </div>` : ""}
-        ${d.hasStop ? `
+        ${d.hasStop && !limitOnly ? `
         <div class="form-grid">
           <div class="field"><label for="s-fade">Fade out before stopping</label>
             <span class="inline"><input type="number" id="s-fade" min="0" max="60" data-s="fade_minutes" value="${d.fade_minutes}"> minutes</span>
@@ -1603,7 +1627,7 @@ class MediaMgmtPanel extends HTMLElement {
           <div class="field"><span class="label">At the stop time</span>
             ${STOP_ACTIONS.map((a) => `<label class="radio"><input type="radio" name="stop_action" data-s="stop_action" value="${a.id}" ${d.stop_action === a.id ? "checked" : ""}> ${a.label}</label>`).join("")}</div>
         </div>` : ""}
-        ${d.hasStart && d.hasStop ? `<label class="toggle"><span>Play through limits<small>The daily limit and quiet windows don't stop this schedule's music, and its time doesn't count toward the limit. Stop music now still does.</small></span>
+        ${d.hasStart && d.hasStop && !limitOnly ? `<label class="toggle"><span>Play through limits<small>The daily limit and quiet windows don't stop this schedule's music, and its time doesn't count toward the limit. Stop music now still does.</small></span>
           <span class="switch"><input type="checkbox" data-s="lift_limits" ${d.lift_limits ? "checked" : ""}><span></span></span></label>` : ""}
         <div class="form-actions">
           <button type="submit" class="btn primary" ${this._busy ? "disabled" : ""}>${this._busy ? "Saving…" : "Save schedule"}</button>
@@ -1613,15 +1637,27 @@ class MediaMgmtPanel extends HTMLElement {
     </div></section>`;
   }
 
+  // Copy what's in the schedule form into the draft.
+  _syncSchedForm() {
+    this.shadowRoot.querySelectorAll("#schedule [data-s]").forEach((el) => {
+      if (el.type === "radio") {
+        if (el.checked) this._schedEdit[el.dataset.s] = el.value;
+      } else this._schedEdit[el.dataset.s] = el.type === "checkbox" ? el.checked : el.value;
+    });
+  }
+
   async _saveSchedule() {
     const d = this._schedEdit;
     if (!d.hasStart && !d.hasStop) return this._showError("Give the schedule a start time, a stop time, or both.");
     if (!d.days.length) return this._showError("Pick at least one day.");
-    if (d.hasStart && d.play_kind !== "resume" && !String(d.play_value).trim()) return this._showError("Say what to play.");
+    const limitOnly = d.play_kind === "none";
+    if (limitOnly && (!d.start || !d.stop)) return this._showError("Give the volume limit a start and an end time.");
+    if (limitOnly && d.start === d.stop) return this._showError("The volume limit starts and ends at the same time.");
+    if (d.hasStart && !limitOnly && d.play_kind !== "resume" && !String(d.play_value).trim()) return this._showError("Say what to play.");
     if (d.hasStart && d.hasStop && d.limitVolume) {
       const limit = Number(d.volume_limit);
       if (!Number.isInteger(limit) || limit < 5 || limit > 100) return this._showError("Limit the volume to a whole number from 5 to 100%.");
-      if (d.setVolume && Number(d.volume) > limit) return this._showError(`The starting volume (${d.volume}%) is above the limit (${limit}%). Lower it, or raise the limit.`);
+      if (!limitOnly && d.setVolume && Number(d.volume) > limit) return this._showError(`The starting volume (${d.volume}%) is above the limit (${limit}%). Lower it, or raise the limit.`);
     }
     const schedule = {
       id: d.id || null,
@@ -1635,8 +1671,8 @@ class MediaMgmtPanel extends HTMLElement {
       content_type: d.content_type || null,
       shuffle: d.shuffle,
       repeat: d.repeat,
-      volume: d.hasStart && d.setVolume ? Number(d.volume) : null,
-      volume_limit: d.hasStart && d.hasStop && d.limitVolume ? Number(d.volume_limit) : null,
+      volume: d.hasStart && d.setVolume && !limitOnly ? Number(d.volume) : null,
+      volume_limit: d.hasStart && d.hasStop && (d.limitVolume || limitOnly) ? Number(d.volume_limit) : null,
       fade_minutes: d.hasStop ? Number(d.fade_minutes) || 0 : 0,
       stop_action: d.stop_action,
       lift_limits: d.lift_limits,
@@ -2039,6 +2075,24 @@ class MediaMgmtPanel extends HTMLElement {
       this._scheduleRequest(ds.id, { type: "media_mgmt/schedule/run", schedule_id: ds.run });
       return;
     }
+    if (ds.newLimit) {
+      this._schedEdit = this._newSchedule(ds.newLimit, { name: "Early morning", play_kind: "none", start: "06:00", stop: "08:00", limitVolume: true, volume_limit: 20 });
+      this._error = null;
+      this._render();
+      return;
+    }
+    if (ds.schedMode && this._schedEdit) {
+      this._syncSchedForm();
+      const d = this._schedEdit;
+      if (ds.schedMode === "limit" && d.play_kind !== "none") {
+        d.musicKind = d.play_kind;
+        Object.assign(d, { play_kind: "none", hasStart: true, hasStop: true, limitVolume: true });
+      } else if (ds.schedMode === "music" && d.play_kind === "none") {
+        d.play_kind = d.musicKind || "artist";
+      }
+      this._render();
+      return;
+    }
     if (ds.newSchedule) {
       this._schedEdit = this._newSchedule(ds.newSchedule);
       this._error = null;
@@ -2176,11 +2230,7 @@ class MediaMgmtPanel extends HTMLElement {
       return this._speakerRequest({ type: "media_mgmt/speakers/add", entity_id: entityId }, () => `Added ${name}. Set its rules under Rules, or a bedtime schedule under Schedules.`);
     }
     if (form.id === "schedule") {
-      this.shadowRoot.querySelectorAll("#schedule [data-s]").forEach((el) => {
-        if (el.type === "radio") {
-          if (el.checked) this._schedEdit[el.dataset.s] = el.value;
-        } else this._schedEdit[el.dataset.s] = el.type === "checkbox" ? el.checked : el.value;
-      });
+      this._syncSchedForm();
       return this._saveSchedule();
     }
     if (form.id === "add-rule") {
