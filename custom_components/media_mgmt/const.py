@@ -13,6 +13,11 @@ SECTION_LISTENING = "listening"
 SECTION_FILTER = "filter"
 SECTION_VOLUME = "volume"
 SECTION_ANNOUNCE = "announcements"
+SECTION_PLAYBACK = "playback"
+
+# Playing music: the Music Assistant player to play through, picked by hand
+# when Media Mgmt can't find the speaker's one itself.
+CONF_MA_PLAYER = "music_assistant_player"
 
 # Listening time
 CONF_DAILY_BUDGET = "daily_budget"  # minutes, 0 = unlimited
@@ -83,6 +88,7 @@ SERVICE_UNBLOCK_MEDIA = "unblock_media"
 SERVICE_SET_SLEEP_TIMER = "set_sleep_timer"
 SERVICE_CANCEL_SLEEP_TIMER = "cancel_sleep_timer"
 SERVICE_RUN_SCHEDULE = "run_schedule"
+SERVICE_PLAY_ARTIST = "play_artist"
 ATTR_PROFILE_ID = "profile_id"
 ATTR_MINUTES = "minutes"
 
@@ -91,6 +97,11 @@ EVENT_MEDIA_BLOCKED = f"{DOMAIN}_media_blocked"
 EVENT_ENFORCEMENT_CHANGED = f"{DOMAIN}_enforcement_changed"
 EVENT_WARNING = f"{DOMAIN}_warning"
 EVENT_SCHEDULE = f"{DOMAIN}_schedule"
+EVENT_PLAY = f"{DOMAIN}_play"
+
+# Voice and AI assistants: "play Brahms in the kids room"
+INTENT_PLAY_ARTIST = "MediaMgmtPlayArtist"
 
 SIGNAL_UPDATED = f"{DOMAIN}_updated_{{}}"
 SIGNAL_ANY_UPDATED = f"{DOMAIN}_any_updated"
+SIGNAL_ARTISTS_UPDATED = f"{DOMAIN}_artists_updated"

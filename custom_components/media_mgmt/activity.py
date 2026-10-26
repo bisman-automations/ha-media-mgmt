@@ -39,11 +39,12 @@ EV_RULE = "rule"  # kind, value, added, by: blocked music changed
 EV_SCHEDULE = "schedule"  # id, name, action (started/failed/fading/stopped/stop_idle), detail, by
 EV_SLEEP = "sleep"  # action (set/cancelled/fired), minutes, fade, by
 EV_VOLUME = "volume"  # from, to, acted: turned down to the cap
+EV_PLAY_REQUEST = "play_request"  # name, media_type, ok, method, reason, detail, by: asked to play an artist
 
 EVENT_TYPES = [
     EV_STATE, EV_PLAY, EV_BLOCKED, EV_ENFORCEMENT, EV_STOPPED, EV_MODE, EV_FILTER,
     EV_ADULT_MODE, EV_EXTENSION, EV_BLOCK, EV_UNBLOCK, EV_RESET, EV_RULE, EV_SCHEDULE,
-    EV_SLEEP, EV_VOLUME,
+    EV_SLEEP, EV_VOLUME, EV_PLAY_REQUEST,
 ]
 
 KEEP_EVENT_DAYS = 90

@@ -125,3 +125,65 @@ run_schedule:
       example: Bedtime music
       selector:
         text: null
+
+play_artist:
+  fields:
+    artist:
+      required: true
+      example: Taylor Swift
+      selector:
+        text: null
+    profile_id:
+      selector:
+        config_entry:
+          integration: media_mgmt
+    entity_id:
+      selector:
+        entity:
+          domain: media_player
+    speaker:
+      example: Kids Room
+      selector:
+        text: null
+    area_id:
+      selector:
+        area: {}
+    advanced:
+      collapsed: true
+      fields:
+        media_type:
+          default: artist
+          selector:
+            select:
+              translation_key: media_type
+              options:
+                - artist
+                - album
+                - track
+                - playlist
+        uri:
+          example: library://artist/12
+          selector:
+            text: null
+        radio_mode:
+          selector:
+            boolean: null
+        shuffle:
+          selector:
+            boolean: null
+        volume:
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+        enqueue:
+          default: replace
+          selector:
+            select:
+              translation_key: enqueue
+              options:
+                - play
+                - replace
+                - next
+                - add

@@ -71,6 +71,16 @@
               "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
               "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
             }
+          },
+          "playback": {
+            "name": "Playing artists",
+            "description": "Media Mgmt plays artists through Music Assistant when it runs this speaker too, and finds its Music Assistant player by itself. Pick one only if the sidebar app says it couldn't.",
+            "data": {
+              "music_assistant_player": "Music Assistant player"
+            },
+            "data_description": {
+              "music_assistant_player": "The Music Assistant player that streams to this speaker (for a HomePod, its AirPlay player; for Sonos, its Sonos player). Leave empty to find it automatically."
+            }
           }
         }
       }
@@ -148,6 +158,16 @@
               "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
               "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
             }
+          },
+          "playback": {
+            "name": "Playing artists",
+            "description": "Media Mgmt plays artists through Music Assistant when it runs this speaker too, and finds its Music Assistant player by itself. Pick one only if the sidebar app says it couldn't.",
+            "data": {
+              "music_assistant_player": "Music Assistant player"
+            },
+            "data_description": {
+              "music_assistant_player": "The Music Assistant player that streams to this speaker (for a HomePod, its AirPlay player; for Sonos, its Sonos player). Leave empty to find it automatically."
+            }
           }
         }
       }
@@ -166,6 +186,9 @@
           "monitor_only": "Monitor only",
           "paused": "Paused"
         }
+      },
+      "play_artist": {
+        "name": "Play artist"
       }
     },
     "switch": {
@@ -182,6 +205,9 @@
       },
       "block_current_artist": {
         "name": "Block this artist"
+      },
+      "play_saved_artist": {
+        "name": "Play {artist}"
       }
     },
     "sensor": {
@@ -348,6 +374,61 @@
           "description": "The schedule's name or ID."
         }
       }
+    },
+    "play_artist": {
+      "name": "Play artist",
+      "description": "Play an artist (or album, song or playlist) on a speaker Media Mgmt manages, through Music Assistant when it can. Blocked music, listening limits, quiet windows and the volume cap still apply. Returns what played, or why it didn't.",
+      "fields": {
+        "artist": {
+          "name": "Artist",
+          "description": "The artist's name, a saved artist's name or other name, or a Music Assistant URI."
+        },
+        "profile_id": {
+          "name": "Profile",
+          "description": "The Media Mgmt profile (one per speaker) to play on."
+        },
+        "entity_id": {
+          "name": "Speaker entity",
+          "description": "The speaker to play on, or its Music Assistant player."
+        },
+        "speaker": {
+          "name": "Speaker name",
+          "description": "The speaker or room to play on, as someone would say it, e.g. Kids Room."
+        },
+        "area_id": {
+          "name": "Area",
+          "description": "Play on the speaker in this area. Used when no speaker is named; a voice assistant's area, for example."
+        },
+        "media_type": {
+          "name": "Type",
+          "description": "What the name is. Defaults to artist."
+        },
+        "uri": {
+          "name": "Media URI",
+          "description": "Play exactly this (a Music Assistant URI, or a share link for Sonos). Saved artists bring their own."
+        },
+        "radio_mode": {
+          "name": "Radio",
+          "description": "Keep playing similar music once the artist's songs run out (Music Assistant)."
+        },
+        "shuffle": {
+          "name": "Shuffle",
+          "description": "Shuffle the artist's songs."
+        },
+        "volume": {
+          "name": "Volume",
+          "description": "Set the volume first. The speaker's volume cap still applies."
+        },
+        "enqueue": {
+          "name": "Queue",
+          "description": "Replace what's playing (default), play now, play next, or add to the end of the queue."
+        }
+      },
+      "sections": {
+        "advanced": {
+          "name": "More options"
+        }
+      }
     }
   },
   "exceptions": {
@@ -371,6 +452,9 @@
     },
     "schedule_limit_only": {
       "message": "{schedule} only limits the volume, so there's nothing to play."
+    },
+    "play_failed": {
+      "message": "{message}"
     }
   },
   "selector": {
@@ -395,6 +479,22 @@
         "album": "Album",
         "source": "App or source",
         "keyword": "Word in a title"
+      }
+    },
+    "media_type": {
+      "options": {
+        "artist": "Artist",
+        "album": "Album",
+        "track": "Song",
+        "playlist": "Playlist"
+      }
+    },
+    "enqueue": {
+      "options": {
+        "play": "Play now",
+        "replace": "Replace the queue",
+        "next": "Play next",
+        "add": "Add to the queue"
       }
     }
   }

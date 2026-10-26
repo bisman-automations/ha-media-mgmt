@@ -6,8 +6,8 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -24,6 +24,7 @@ from .const import (
     SERVICE_CANCEL_SLEEP_TIMER,
     SERVICE_FORCE_BLOCK,
     SERVICE_GRANT_EXTENSION,
+    SERVICE_PLAY_ARTIST,
     SERVICE_RESET_USAGE,
     SERVICE_RUN_SCHEDULE,
     SERVICE_SET_SLEEP_TIMER,
@@ -65,16 +66,35 @@ SLEEP_SCHEMA = PROFILE_SCHEMA.extend(
     }
 )
 SCHEDULE_SCHEMA = PROFILE_SCHEMA.extend({vol.Required("schedule"): cv.string})
+PLAY_ARTIST_SCHEMA = vol.Schema(
+    {
+        vol.Required("artist"): vol.All(cv.string, vol.Strip, vol.Length(min=1, max=500)),
+        vol.Optional(ATTR_PROFILE_ID): cv.string,
+        vol.Optional("entity_id"): cv.entity_id,
+        vol.Optional("speaker"): vol.Any(None, vol.All(cv.string, vol.Strip, vol.Length(max=100))),
+        vol.Optional("area_id"): vol.Any(None, cv.string),
+        vol.Optional("media_type", default="artist"): vol.In(["artist", "album", "track", "playlist"]),
+        vol.Optional("uri"): vol.Any(None, vol.All(cv.string, vol.Strip, vol.Length(max=1000))),
+        vol.Optional("radio_mode"): cv.boolean,
+        vol.Optional("shuffle"): cv.boolean,
+        vol.Optional("volume"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional("enqueue", default="replace"): vol.In(["play", "replace", "next", "add"]),
+    }
+)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     from . import websocket
     from .access import async_get_access
+    from .intent import async_setup_intents
     from .panel import async_register_panel
+    from .saved import async_load_saved
 
     await async_get_access(hass)
+    await async_load_saved(hass)
     _register_services(hass)
     websocket.async_register(hass)
+    await async_setup_intents(hass)
     await async_register_panel(hass)
     return True
 
@@ -242,6 +262,38 @@ def _register_services(hass: HomeAssistant) -> None:
             )
         await manager.async_start_schedule(sched, by=await _user_name(hass, call), manual=True)
 
+    async def play_artist(call: ServiceCall) -> ServiceResponse:
+        # Playing doesn't change or lift any rule (blocked music, limits, quiet
+        # windows and the volume cap all apply), so it's open to everyone,
+        # like pressing play on the speaker.
+        from .saved import async_play_request
+
+        data = call.data
+        result = await async_play_request(
+            hass,
+            data["artist"],
+            profile_id=data.get(ATTR_PROFILE_ID),
+            entity_id=data.get("entity_id"),
+            speaker=data.get("speaker"),
+            area_id=data.get("area_id"),
+            media_type=data["media_type"],
+            uri=data.get("uri"),
+            radio=data.get("radio_mode"),
+            shuffle=data.get("shuffle"),
+            volume=data.get("volume"),
+            enqueue=data["enqueue"],
+            by=await _user_name(hass, call),
+        )
+        if call.return_response:
+            return result.as_dict()
+        if not result.ok:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="play_failed",
+                translation_placeholders={"message": result.message},
+            )
+        return None
+
     register = hass.services.async_register
     register(DOMAIN, SERVICE_GRANT_EXTENSION, grant_extension, EXTENSION_SCHEMA)
     register(DOMAIN, SERVICE_FORCE_BLOCK, simple("force_block"), PROFILE_SCHEMA)
@@ -252,3 +304,6 @@ def _register_services(hass: HomeAssistant) -> None:
     register(DOMAIN, SERVICE_SET_SLEEP_TIMER, set_sleep_timer, SLEEP_SCHEMA)
     register(DOMAIN, SERVICE_CANCEL_SLEEP_TIMER, cancel_sleep_timer, PROFILE_SCHEMA)
     register(DOMAIN, SERVICE_RUN_SCHEDULE, run_schedule, SCHEDULE_SCHEMA)
+    register(
+        DOMAIN, SERVICE_PLAY_ARTIST, play_artist, PLAY_ARTIST_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+    )

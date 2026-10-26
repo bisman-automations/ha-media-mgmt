@@ -152,3 +152,27 @@ class ScheduleStore:
 
     async def async_remove(self) -> None:
         await self._store.async_remove()
+
+
+class ArtistStore:
+    """Saved artists, shared by every speaker in the home."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.artists")
+        self.artists: list = []
+
+    def _data(self) -> dict[str, Any]:
+        return {"artists": [a.as_dict() for a in self.artists]}
+
+    async def async_load(self) -> list:
+        from .artists import load_artists
+
+        data = await self._store.async_load() or {}
+        self.artists = load_artists(data.get("artists"))
+        return self.artists
+
+    def schedule_save(self) -> None:
+        self._store.async_delay_save(self._data, SAVE_DELAY)
+
+    async def async_save(self) -> None:
+        await self._store.async_save(self._data())

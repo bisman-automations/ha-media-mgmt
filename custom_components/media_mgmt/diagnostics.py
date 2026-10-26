@@ -23,6 +23,12 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: MediaMg
             "capabilities": manager.player.capabilities(),
             "media": manager.player.media,
             "state": player_state.as_dict() if player_state else None,
+            # The Music Assistant player for this speaker and how it was found.
+            "music_assistant": {
+                **manager.ma_link.as_dict(),
+                "playing_through": manager.player.via_twin,
+                "target": manager.player.target,
+            },
         },
         "quiet_windows": [w.format() for w in manager.quiet_windows],
         "schedules": [s.as_dict() for s in manager.schedules],

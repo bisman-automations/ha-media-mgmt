@@ -1,0 +1,78 @@
+blueprint:
+  name: Media Mgmt — play an artist by voice
+  description: >-
+    Say or type "play Brahms on the kids room speaker", or just "play Brahms"
+    to use the speaker in the same room as the voice assistant. Music plays
+    through Media Mgmt, so blocked music, listening limits, quiet times and
+    volume caps still apply, and the reply says why if it can't play.
+    Saved artists (in the Media Mgmt sidebar app) can be asked for by any of
+    their names.
+  domain: automation
+  author: Media Mgmt
+  homeassistant:
+    min_version: 2026.3.0
+  source_url: https://github.com/bisman-automations/ha-media-mgmt/blob/main/blueprints/automation/media_mgmt/play_artist.yaml
+  input:
+    sentences:
+      name: Sentences with a speaker
+      description: >-
+        What to say to play an artist on a named speaker. {artist} and
+        {speaker} are filled in from what's said.
+      default:
+        - "play {artist} on [the] {speaker}"
+        - "play {artist} in [the] {speaker}"
+        - "put on {artist} on [the] {speaker}"
+      selector:
+        text:
+          multiple: true
+    area_sentences:
+      name: Sentences for this room
+      description: >-
+        What to say to play an artist on the speaker in the same room as the
+        voice assistant (or the artist's default speaker, or your only speaker).
+      default:
+        - "play [some] [music by] {artist}"
+        - "put on [some] {artist}"
+      selector:
+        text:
+          multiple: true
+    radio_mode:
+      name: Radio
+      description: Keep playing similar music once the artist's songs run out (Music Assistant).
+      default: false
+      selector:
+        boolean: {}
+    shuffle:
+      name: Shuffle
+      default: true
+      selector:
+        boolean: {}
+
+mode: parallel
+max: 5
+
+triggers:
+  - trigger: conversation
+    command: !input sentences
+    id: speaker
+  - trigger: conversation
+    command: !input area_sentences
+    id: area
+
+variables:
+  radio_mode: !input radio_mode
+  shuffle: !input shuffle
+  artist: "{{ trigger.slots.artist | default('') }}"
+  speaker: "{{ trigger.slots.speaker | default('') if trigger.id == 'speaker' else '' }}"
+  satellite_area: "{{ area_id(trigger.device_id) if trigger.device_id else '' }}"
+
+actions:
+  - action: media_mgmt.play_artist
+    data:
+      artist: "{{ artist }}"
+      speaker: "{{ speaker if speaker else none }}"
+      area_id: "{{ satellite_area if satellite_area else none }}"
+      radio_mode: "{{ radio_mode }}"
+      shuffle: "{{ shuffle }}"
+    response_variable: played
+  - set_conversation_response: "{{ played.message }}"

@@ -3,6 +3,11 @@
 Media Mgmt works through the integration that already runs the speaker, so
 any media player Home Assistant has (Sonos, HomePod/AirPlay, Google Cast,
 Music Assistant, Spotify, Alexa Media and others) can be managed.
+
+A speaker can also have a Music Assistant "twin": the Music Assistant player
+that streams to the same speaker. While the twin is playing, Media Mgmt reads
+what's on from it and sends pause, skip and volume to it, because the
+speaker's own integration can't skip or stop Music Assistant's stream.
 """
 
 from __future__ import annotations
@@ -39,13 +44,38 @@ class Player:
     def __init__(self, hass: HomeAssistant, entity_id: str) -> None:
         self.hass = hass
         self.entity_id = entity_id
+        self.twin_id: str | None = None  # the Music Assistant player for this speaker
         self._unsub: CALLBACK_TYPE | None = None
+        self._on_change: Callable[[], None] | None = None
 
     # ---- state ---------------------------------------------------------------
 
     @property
+    def target(self) -> str:
+        """The entity that's playing: the Music Assistant twin while it plays, else the speaker."""
+        if self.twin_id and self.twin_id != self.entity_id:
+            twin = self.hass.states.get(self.twin_id)
+            if twin is not None and twin.state == "playing":
+                return self.twin_id
+            if twin is not None and twin.state == "paused" and self.state_of(self.entity_id) != "playing":
+                own = self.hass.states.get(self.entity_id)
+                # Paused in Music Assistant after it last played: resume there.
+                if own is None or twin.last_changed >= own.last_changed:
+                    return self.twin_id
+        return self.entity_id
+
+    def state_of(self, entity_id: str) -> str | None:
+        st = self.hass.states.get(entity_id)
+        return st.state if st else None
+
+    @property
     def _state(self) -> State | None:
-        return self.hass.states.get(self.entity_id)
+        return self.hass.states.get(self.target)
+
+    @property
+    def native_state(self) -> str | None:
+        """The speaker's own state, whatever Music Assistant is doing."""
+        return self.state_of(self.entity_id)
 
     @property
     def state(self) -> str | None:
@@ -55,6 +85,11 @@ class Player:
     @property
     def available(self) -> bool:
         return self.state not in (None, STATE_UNAVAILABLE, STATE_UNKNOWN)
+
+    @property
+    def via_twin(self) -> bool:
+        """Is Music Assistant playing on this speaker right now?"""
+        return self.target != self.entity_id
 
     @property
     def is_playing(self) -> bool:
@@ -73,7 +108,7 @@ class Player:
 
     @property
     def name(self) -> str:
-        st = self._state
+        st = self.hass.states.get(self.entity_id)
         return st.name if st else self.entity_id
 
     @property
@@ -89,12 +124,17 @@ class Player:
     def features(self) -> int:
         return int(self.attributes.get("supported_features") or 0)
 
-    def supports(self, feature: int) -> bool:
-        return bool(self.features & feature)
+    def supports(self, feature: int, entity_id: str | None = None) -> bool:
+        if entity_id is None:
+            return bool(self.features & feature)
+        st = self.hass.states.get(entity_id)
+        return bool(int((st.attributes.get("supported_features") if st else 0) or 0) & feature)
 
     @property
     def source_list(self) -> list[str]:
-        return [str(s) for s in self.attributes.get("source_list") or []]
+        """The speaker's own favourites, stations and inputs (Sonos favourites, say)."""
+        st = self.hass.states.get(self.entity_id)
+        return [str(s) for s in (st.attributes.get("source_list") if st else None) or []]
 
     @property
     def platform(self) -> str | None:
@@ -106,6 +146,15 @@ class Player:
         return self.platform == MUSIC_ASSISTANT_DOMAIN and self.hass.services.has_service(
             MUSIC_ASSISTANT_DOMAIN, "play_media"
         )
+
+    @property
+    def ma_entity_id(self) -> str | None:
+        """The Music Assistant player to play through: the speaker itself, or its twin."""
+        if not self.hass.services.has_service(MUSIC_ASSISTANT_DOMAIN, "play_media"):
+            return None
+        if self.platform == MUSIC_ASSISTANT_DOMAIN:
+            return self.entity_id
+        return self.twin_id
 
     def capabilities(self) -> dict[str, bool]:
         return {
@@ -121,34 +170,62 @@ class Player:
             "shuffle": self.supports(F.SHUFFLE_SET),
             "repeat": self.supports(F.REPEAT_SET),
             "announce": self.supports(F.MEDIA_ANNOUNCE),
-            "music_assistant": self.is_music_assistant,
+            "music_assistant": self.ma_entity_id is not None,
         }
 
     # ---- listening -----------------------------------------------------------
 
     @callback
     def async_start(self, on_change: Callable[[], None]) -> None:
+        self._on_change = on_change
+        self._track()
+
+    @callback
+    def _track(self) -> None:
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+        if self._on_change is None:
+            return
+        on_change = self._on_change
+
         @callback
         def _changed(_event: Event) -> None:
             on_change()
 
-        self._unsub = async_track_state_change_event(self.hass, [self.entity_id], _changed)
+        ids = [self.entity_id] + ([self.twin_id] if self.twin_id and self.twin_id != self.entity_id else [])
+        self._unsub = async_track_state_change_event(self.hass, ids, _changed)
+
+    @callback
+    def set_twin(self, twin_id: str | None) -> bool:
+        """Follow a different Music Assistant player. Returns True if it changed."""
+        if twin_id == self.entity_id:
+            twin_id = None
+        if twin_id == self.twin_id:
+            return False
+        self.twin_id = twin_id
+        self._track()
+        return True
 
     @callback
     def async_stop(self) -> None:
+        self._on_change = None
         if self._unsub:
             self._unsub()
             self._unsub = None
 
     # ---- commands ------------------------------------------------------------
 
-    async def _call(self, service: str, data: dict[str, Any] | None = None, *, domain: str = MP_DOMAIN) -> bool:
+    async def _call(
+        self, service: str, data: dict[str, Any] | None = None, *, domain: str = MP_DOMAIN, target: str | None = None
+    ) -> bool:
+        entity_id = target or self.target
         try:
             await self.hass.services.async_call(
-                domain, service, {ATTR_ENTITY_ID: self.entity_id, **(data or {})}, blocking=True
+                domain, service, {ATTR_ENTITY_ID: entity_id, **(data or {})}, blocking=True
             )
         except (HomeAssistantError, ValueError) as err:
-            _LOGGER.warning("Media Mgmt: %s.%s on %s failed: %s", domain, service, self.entity_id, err)
+            _LOGGER.warning("Media Mgmt: %s.%s on %s failed: %s", domain, service, entity_id, err)
             return False
         return True
 
@@ -176,32 +253,38 @@ class Player:
         }[action]
         return await self._call(service)
 
-    async def async_set_volume(self, level: float) -> bool:
-        return await self._call("volume_set", {"volume_level": round(max(0.0, min(1.0, level)), 3)})
+    async def async_set_volume(self, level: float, *, target: str | None = None) -> bool:
+        return await self._call("volume_set", {"volume_level": round(max(0.0, min(1.0, level)), 3)}, target=target)
 
     async def async_play(self) -> bool:
         return await self._call("media_play")
 
     async def async_play_media(self, content_id: str, content_type: str, *, enqueue: str | None = None) -> bool:
+        """Play on the speaker's own integration."""
         data: dict[str, Any] = {"media_content_id": content_id, "media_content_type": content_type}
-        if enqueue and self.supports(F.MEDIA_ENQUEUE):
+        if enqueue and self.supports(F.MEDIA_ENQUEUE, self.entity_id):
             data["enqueue"] = enqueue
-        return await self._call("play_media", data)
+        return await self._call("play_media", data, target=self.entity_id)
 
-    async def async_music_assistant(self, media_id: str, media_type: str, *, radio: bool = False) -> bool:
-        data: dict[str, Any] = {"media_id": media_id, "media_type": media_type, "enqueue": "replace"}
+    async def async_music_assistant(
+        self, media_id: str | list[str], media_type: str, *, radio: bool = False, enqueue: str = "replace"
+    ) -> bool:
+        """Play through Music Assistant, on the speaker or its twin."""
+        if (target := self.ma_entity_id) is None:
+            return False
+        data: dict[str, Any] = {"media_id": media_id, "media_type": media_type, "enqueue": enqueue}
         if radio:
             data["radio_mode"] = True
-        return await self._call("play_media", data, domain=MUSIC_ASSISTANT_DOMAIN)
+        return await self._call("play_media", data, domain=MUSIC_ASSISTANT_DOMAIN, target=target)
 
     async def async_select_source(self, source: str) -> bool:
-        return await self._call("select_source", {"source": source})
+        return await self._call("select_source", {"source": source}, target=self.entity_id)
 
-    async def async_shuffle(self, shuffle: bool) -> bool:
-        return self.supports(F.SHUFFLE_SET) and await self._call("shuffle_set", {"shuffle": shuffle})
+    async def async_shuffle(self, shuffle: bool, *, target: str | None = None) -> bool:
+        return self.supports(F.SHUFFLE_SET, target) and await self._call("shuffle_set", {"shuffle": shuffle}, target=target)
 
-    async def async_repeat(self, repeat: str) -> bool:
-        return self.supports(F.REPEAT_SET) and await self._call("repeat_set", {"repeat": repeat})
+    async def async_repeat(self, repeat: str, *, target: str | None = None) -> bool:
+        return self.supports(F.REPEAT_SET, target) and await self._call("repeat_set", {"repeat": repeat}, target=target)
 
     async def async_turn_on(self) -> bool:
-        return self.supports(F.TURN_ON) and await self._call("turn_on")
+        return self.supports(F.TURN_ON, self.entity_id) and await self._call("turn_on", target=self.entity_id)

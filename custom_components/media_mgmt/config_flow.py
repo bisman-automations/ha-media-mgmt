@@ -30,6 +30,7 @@ from .const import (
     CONF_DAILY_BUDGET,
     CONF_FILTER_ACTION,
     CONF_LIMIT_ACTION,
+    CONF_MA_PLAYER,
     CONF_MAX_VOLUME,
     CONF_MEDIA_PLAYER,
     CONF_QUIET_WINDOWS,
@@ -44,9 +45,11 @@ from .const import (
     DOMAIN,
     FILTER_ACTIONS,
     LIMIT_ACTIONS,
+    MUSIC_ASSISTANT_DOMAIN,
     SECTION_ANNOUNCE,
     SECTION_FILTER,
     SECTION_LISTENING,
+    SECTION_PLAYBACK,
     SECTION_VOLUME,
 )
 from .filters import clean_list
@@ -108,11 +111,19 @@ def _settings_schema(d: Mapping[str, Any]) -> vol.Schema:
             CONF_ANNOUNCE_PLAYERS, description={"suggested_value": d.get(CONF_ANNOUNCE_PLAYERS) or []}
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain=MP_DOMAIN, multiple=True)),
     })
+    # Playing artists: Media Mgmt finds the speaker's Music Assistant player
+    # itself; pick one here only when it can't (shown in the sidebar app).
+    playback = vol.Schema({
+        vol.Optional(CONF_MA_PLAYER, description={"suggested_value": d.get(CONF_MA_PLAYER)}): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=MP_DOMAIN, integration=MUSIC_ASSISTANT_DOMAIN)
+        ),
+    })
     return vol.Schema({
         vol.Required(SECTION_LISTENING): section(listening),
         vol.Required(SECTION_FILTER): section(vol.Schema(music_filter), {"collapsed": True}),
         vol.Required(SECTION_VOLUME): section(volume, {"collapsed": True}),
         vol.Required(SECTION_ANNOUNCE): section(announce, {"collapsed": True}),
+        vol.Required(SECTION_PLAYBACK): section(playback, {"collapsed": True}),
     })
 
 
@@ -146,11 +157,14 @@ def process_settings(user_input: dict[str, Any]) -> tuple[dict[str, Any], dict[s
     if (announce[CONF_ANNOUNCE_PLAYERS] or announce[CONF_ANNOUNCE_ON_PLAYER]) and not announce[CONF_ANNOUNCE_TTS]:
         errors["base"] = "announce_needs_voice"
 
+    playback = {CONF_MA_PLAYER: user_input.get(SECTION_PLAYBACK, {}).get(CONF_MA_PLAYER) or None}
+
     return {
         SECTION_LISTENING: listening,
         SECTION_FILTER: music_filter,
         SECTION_VOLUME: volume,
         SECTION_ANNOUNCE: announce,
+        SECTION_PLAYBACK: playback,
     }, errors
 
 

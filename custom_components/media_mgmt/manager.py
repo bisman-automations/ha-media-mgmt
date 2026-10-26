@@ -9,7 +9,8 @@ from typing import Any
 from homeassistant.components.media_player import MediaPlayerEntityFeature as F
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.util import dt as dt_util
@@ -34,6 +35,7 @@ from .const import (
     CONF_DAILY_BUDGET,
     CONF_FILTER_ACTION,
     CONF_LIMIT_ACTION,
+    CONF_MA_PLAYER,
     CONF_MAX_VOLUME,
     CONF_MEDIA_PLAYER,
     CONF_QUIET_WINDOWS,
@@ -46,6 +48,7 @@ from .const import (
     DEFAULT_WARN_MINUTES,
     EVENT_ENFORCEMENT_CHANGED,
     EVENT_MEDIA_BLOCKED,
+    EVENT_PLAY,
     EVENT_SCHEDULE,
     EVENT_WARNING,
     FADE_STEP,
@@ -57,7 +60,17 @@ from .const import (
     VOLUME_COOLDOWN,
 )
 from .filters import MusicFilter, add_rule, clean_list, remove_rule
+from .ma_link import LINK_SELF, MALink, resolve as resolve_ma_link
 from .media import describe, media_id, norm, track_key
+from .playback import (
+    MEDIA_KINDS,
+    REFUSED_BLOCKED,
+    REFUSED_LIMIT,
+    REFUSED_UNAVAILABLE,
+    PlayResult,
+    async_play_media_item,
+    is_uri,
+)
 from .player import Player
 from .quiet import QuietWindow, parse_windows
 from .schedules import (
@@ -69,6 +82,8 @@ from .schedules import (
 from .state import (
     MODE_ENFORCED,
     MODES,
+    REASON_MANUAL,
+    REASON_QUIET,
     STATE_ENFORCING,
     STATE_OK,
     STATE_SCHEDULE,
@@ -100,12 +115,6 @@ def flatten_options(options: dict[str, Any]) -> dict[str, Any]:
     return flat
 
 
-def _looks_like_uri(value: str) -> bool:
-    return value.startswith(("http://", "https://", "media-source://")) or (
-        ":" in value and " " not in value
-    ) or value.startswith(("library://", "spotify:", "apple_music:"))
-
-
 class MediaManager:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -119,6 +128,8 @@ class MediaManager:
         self.filter = MusicFilter()
         self.quiet_windows: list[QuietWindow] = []
         self.announcer: Announcer | None = None
+        # The Music Assistant player for this speaker, and how it was found.
+        self.ma_link = MALink()
         self.apply_options(dict(entry.options), start=False)
 
         self._unsubs: list[CALLBACK_TYPE] = []
@@ -175,6 +186,7 @@ class MediaManager:
             player_can_announce=lambda: self.player.supports(F.MEDIA_ANNOUNCE),
         )
         if start:
+            self.refresh_ma_link(notify=False)
             self._filter_key = None  # re-check what's playing against the new rules
             self._recompute()
             self._evaluate()
@@ -246,7 +258,14 @@ class MediaManager:
         self._logged_play = None
         self._rollover_if_needed(dt_util.now())
 
+        self.refresh_ma_link(notify=False)
         self.player.async_start(self._on_player_update)
+        self._unsubs.append(
+            self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._on_registry_update)
+        )
+        self._unsubs.append(
+            self.hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, self._on_registry_update)
+        )
         self._unsubs.append(
             async_track_time_interval(
                 self.hass, self._on_tick, timedelta(seconds=TICK_INTERVAL),
@@ -278,6 +297,28 @@ class MediaManager:
         await self.activity_store.async_save()
         await self.schedule_store.async_save()
 
+    # ---- Music Assistant ---------------------------------------------------------
+
+    @callback
+    def refresh_ma_link(self, *, notify: bool = True) -> None:
+        """Find this speaker's Music Assistant player again (settings or registries changed)."""
+        link = resolve_ma_link(self.hass, self.entity_id, self.options.get(CONF_MA_PLAYER))
+        changed = link != self.ma_link
+        self.ma_link = link
+        twin = link.entity_id if link.method != LINK_SELF else None
+        if self.player.set_twin(twin) or changed:
+            if link.linked:
+                _LOGGER.debug("Media Mgmt %s: plays through %s (%s)", self.name, link.entity_id, link.method)
+            if notify:
+                self.notify()
+
+    @callback
+    def _on_registry_update(self, event: Event) -> None:
+        entity_id = event.data.get("entity_id")
+        if entity_id is not None and not str(entity_id).startswith("media_player."):
+            return
+        self.refresh_ma_link()
+
     # ---- updates -----------------------------------------------------------------
 
     @callback
@@ -292,6 +333,9 @@ class MediaManager:
 
     @callback
     def _on_tick(self, _now: datetime) -> None:
+        if not self.ma_link.linked:
+            # Music Assistant may have added the player since (or named it just after adding it).
+            self.refresh_ma_link(notify=False)
         self._count_usage()
         self._snapshot()
         self._recompute()
@@ -785,13 +829,19 @@ class MediaManager:
             self._cancel_fade(restore=False)
         if player.is_on is False:
             await player.async_turn_on()
-        if sched.volume is not None and player.supports(F.VOLUME_SET):
-            await player.async_set_volume(min(sched.volume, sched.volume_limit or 100, self.max_volume) / 100)
+        via_ma = (
+            sched.play_kind in MEDIA_KINDS and not is_uri(sched.play_value) and player.ma_entity_id is not None
+        )
+        target = player.ma_entity_id if via_ma else player.entity_id
+        if sched.volume is not None and player.supports(F.VOLUME_SET, target):
+            await player.async_set_volume(
+                min(sched.volume, sched.volume_limit or 100, self.max_volume) / 100, target=target
+            )
         ok, detail = await self._play(sched)
         if ok:
             if sched.play_kind != PLAY_SOURCE:
-                await player.async_shuffle(sched.shuffle)
-                await player.async_repeat(sched.repeat)
+                await player.async_shuffle(sched.shuffle, target=target)
+                await player.async_repeat(sched.repeat, target=target)
             self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="started", detail=detail, by=by)
             self._fire_schedule(sched, "started", detail)
         else:
@@ -813,25 +863,15 @@ class MediaManager:
             return await player.async_select_source(value), f"source {value}"
         if kind == PLAY_CONTENT:
             return await player.async_play_media(value, sched.content_type or "music", enqueue="replace"), value
-        # Artist, album, song or playlist
-        if _looks_like_uri(value):
+        # Artist, album, song or playlist. A media ID plays on the speaker as it always has.
+        if is_uri(value):
             return await player.async_play_media(value, sched.content_type or kind, enqueue="replace"), value
-        if player.is_music_assistant:
-            return (
-                await player.async_music_assistant(value, kind, radio=False),
-                f"{kind} {value} with Music Assistant",
-            )
-        if item := self._library_match(kind, value):
-            content_id, content_type = item["content_id"], item.get("content_type") or "music"
-            return await player.async_play_media(content_id, content_type, enqueue="replace"), (
-                f"{item.get('title')} from {kind} {value}"
-            )
-        return False, (
-            f"This speaker can't search for the {kind} {value!r}. Link it through Music Assistant, "
-            "or play a playlist, a favourite (source) or a media ID instead."
-        )
+        result = await async_play_media_item(self, kind, value)
+        if result.ok and result.method == "music_assistant":
+            return True, f"{kind} {result.name} with Music Assistant"
+        return result.ok, result.message
 
-    def _library_match(self, kind: str, value: str) -> dict[str, Any] | None:
+    def library_match(self, kind: str, value: str) -> dict[str, Any] | None:
         """The most played song from the library that fits, with an ID the speaker can play."""
         field = {"artist": "artist", "album": "album", "track": "title", "playlist": "playlist"}.get(kind)
         wanted = norm(value)
@@ -844,6 +884,84 @@ class MediaManager:
             if best is None or item.get("plays", 0) > best.get("plays", 0):
                 best = item
         return best
+
+    # Playing an artist (play_artist action, voice, sidebar app, buttons) ----------------
+
+    def play_refusal(self, name: str | None, kind: str = "artist") -> tuple[str, str] | None:
+        """(reason, message) if the rules wouldn't let this play right now, else None.
+
+        Adult mode and Paused lift every rule; monitor only never refuses.
+        """
+        if not self._enforcing():
+            return None
+        decision = self.decision
+        if decision.blocked:
+            if decision.reason == REASON_MANUAL:
+                why = "music is stopped for now"
+            elif decision.reason == REASON_QUIET:
+                why = f"it's quiet time ({decision.quiet_window})" if decision.quiet_window else "it's quiet time"
+            else:
+                why = "today's listening time is used up"
+            return REFUSED_LIMIT, f"Music can't play on {self.name}: {why}"
+        if name and decision.filter_active:
+            field = {"artist": "artist", "album": "album", "track": "title"}.get(kind)
+            if field and (rule := self.blocked_rule({field: name})):
+                return REFUSED_BLOCKED, f"{name} is blocked on {self.name} ({rule[0]}: {rule[1]})"
+        return None
+
+    async def async_play_artist(
+        self,
+        name: str,
+        *,
+        kind: str = "artist",
+        uri: str | None = None,
+        radio: bool = False,
+        shuffle: bool | None = None,
+        volume: int | None = None,
+        enqueue: str = "replace",
+        by: str | None = None,
+    ) -> PlayResult:
+        """Play an artist (or album, song, playlist) if the rules allow it."""
+        player = self.player
+        base = {"speaker": self.name, "name": name, "media_type": kind, "uri": uri, "radio": radio}
+        if refusal := self.play_refusal(name, kind):
+            result = PlayResult(ok=False, reason=refusal[0], message=refusal[1], **base)
+        elif player.native_state is None and player.ma_entity_id is None:
+            result = PlayResult(
+                ok=False, reason=REFUSED_UNAVAILABLE, message=f"{self.name} isn't available", **base
+            )
+        else:
+            if self._fade:
+                self._cancel_fade(restore=False)
+            if player.is_on is False:
+                await player.async_turn_on()
+            target = player.ma_entity_id or player.entity_id
+            if volume is not None and player.supports(F.VOLUME_SET, target):
+                level = min(int(volume), 100 if self.adult_mode_active else self.volume_cap)
+                await player.async_set_volume(level / 100, target=target)
+            result = await async_play_media_item(self, kind, name, uri=uri, radio=radio, enqueue=enqueue)
+            if result.ok and shuffle is not None and kind != "track" and result.method != "favorite":
+                await player.async_shuffle(shuffle, target=result.entity_id)
+        self._log(
+            act.EV_PLAY_REQUEST, name=result.name, media_type=kind, ok=result.ok, method=result.method,
+            reason=result.reason, detail=result.message, by=by,
+        )
+        self.hass.bus.async_fire(
+            EVENT_PLAY,
+            {
+                **result.as_dict(),
+                "profile_id": self.entry.entry_id,
+                ATTR_ENTITY_ID: self.entity_id,  # the speaker
+                "played_on": result.entity_id,  # the player told to play (maybe Music Assistant's)
+                "by": by,
+            },
+        )
+        if not result.ok:
+            _LOGGER.info("Media Mgmt %s: didn't play %s: %s", self.name, name, result.message)
+        self._recompute()
+        self._evaluate()
+        self.notify()
+        return result
 
     # Editing schedules (from the sidebar app) ----------------------------------------------
 
