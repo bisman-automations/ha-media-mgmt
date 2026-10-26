@@ -7,6 +7,7 @@ const TABS = [
   { id: "activity", label: "Activity" },
   { id: "analytics", label: "Analytics" },
   { id: "library", label: "Played music" },
+  { id: "artists", label: "Artists" },
   { id: "schedules", label: "Schedules" },
   { id: "rules", label: "Rules" },
 ];
@@ -47,6 +48,24 @@ const FILTER_ACTIONS = [
   { id: "stop", label: "Stop the music" },
 ];
 const SLEEP_PRESETS = [15, 30, 45, 60];
+// How the speaker's Music Assistant player was found.
+const LINK_LABELS = {
+  self: "This speaker is a Music Assistant player",
+  manual: "Picked by hand",
+  entity_id: "Matched to this speaker",
+  sonos: "Matched by its Sonos ID",
+  airplay: "Matched by its AirPlay address",
+  mac: "Matched by its network address",
+  name: "Matched by name",
+  area: "The only Music Assistant player in this area",
+};
+const PLAYED_VIA = {
+  music_assistant: "through Music Assistant",
+  favorite: "from a favourite",
+  share_link: "from a link",
+  media_id: "",
+  history: "from played music",
+};
 const SEP = " — ";
 
 // Colours for artists on the activity strip, chosen to stay apart in light and dark themes.
@@ -158,6 +177,12 @@ function describeEvent(e) {
       };
     case "play":
       return { icon: "note", text: `Played ${song}${e.source ? ` on ${e.source}` : ""}`, song: true };
+    case "play_request": {
+      const how = PLAYED_VIA[e.method] ? ` ${PLAYED_VIA[e.method]}` : "";
+      return e.ok
+        ? { icon: "play", text: `Asked to play ${e.name}${how}${by}` }
+        : { icon: "play", tone: "warn", text: `Didn't play ${e.name}${e.detail ? `: ${e.detail}` : ""}${by}` };
+    }
     case "blocked": {
       const rule = `${KIND_LABELS[e.kind]?.toLowerCase() ?? e.kind} “${e.rule}”`;
       const did = !e.acted ? " (monitor only)" : { skip: ", skipped it", pause: ", paused", stop: ", stopped", turn_off: ", turned the speaker off" }[e.action] || "";
@@ -513,6 +538,15 @@ input[type="number"] { width: 130px; }
 .window input[type="text"] { min-width: 0; }
 .form-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .saved { color: var(--mm-good); font-size: 14px; }
+.a-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.a-list li { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--divider-color); }
+.a-list li:first-child { border-top: 0; }
+.a-art { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; display: grid; place-items: center; background: var(--secondary-background-color, rgba(127,127,127,.12)); color: var(--secondary-text-color); }
+.a-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.a-name { font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
+.a-name small { display: block; font-weight: 400; color: var(--secondary-text-color); }
+.a-list .acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 600px) { .a-list li { grid-template-columns: 48px 1fr; } .a-list .acts { grid-column: 1 / -1; justify-content: flex-start; } }
 .radio { display: flex; align-items: center; gap: 8px; font-size: 14px; min-height: 30px; }
 input[type="checkbox"].check, input[type="radio"] { width: 18px; height: 18px; accent-color: var(--primary-color); }
 .rules { display: grid; gap: 14px; }
@@ -670,7 +704,15 @@ class MediaMgmtPanel extends HTMLElement {
   _subscribe() {
     if (this._unsub || !this._hass) return;
     this._unsub = this._hass.connection
-      .subscribeMessage(() => this._scheduleRefresh(), { type: "media_mgmt/subscribe" })
+      .subscribeMessage((msg) => {
+        // Saved artists are for the whole home, so they come without a speaker.
+        if (msg?.artists) {
+          if (this._tab === "artists") this._loadArtists({ quiet: true });
+          else this._artistData = null;
+          return;
+        }
+        this._scheduleRefresh();
+      }, { type: "media_mgmt/subscribe" })
       .catch((err) => {
         this._unsub = null;
         this._showError(err);
@@ -895,6 +937,7 @@ class MediaMgmtPanel extends HTMLElement {
         activity: () => this._renderActivity(),
         analytics: () => this._renderAnalytics(),
         library: () => this._renderLibrary(),
+        artists: () => this._renderArtists(),
         schedules: () => this._renderSchedules(),
         rules: () => this._renderRules(),
       }[this._tab]();
@@ -1404,6 +1447,7 @@ class MediaMgmtPanel extends HTMLElement {
           <td class="num">${a.plays}</td><td class="num hide-sm">${duration(a.seconds)}</td><td class="hide-sm muted">${esc(agoLabel(a.last))}</td>
           <td><div class="acts">
             ${a.blocked ? unblock(a.blocked) : `<button class="btn small" data-block="artist" data-value="${esc(a.artist)}" data-id="${id}">${icon("block")} Block</button>`}
+            <button class="btn small" data-save-artist="${esc(a.artist)}" title="Save ${esc(a.artist)} to Artists, to play any time">${icon("plus")} Save</button>
             <button class="btn small" data-schedule-artist="${esc(a.artist)}" data-id="${id}" title="Play ${esc(a.artist)} on a schedule">${icon("calendar")} Schedule</button>
           </div></td></tr>`)
         .join("")}</tbody></table>`;
@@ -1423,6 +1467,133 @@ class MediaMgmtPanel extends HTMLElement {
     }
     return `${toolbar}${note}<section class="card"><div class="card-body" style="padding:6px 8px;overflow-x:auto">${table}</div></section>
       <p class="muted">Showing ${lib.items.length} of ${lib.total} songs this speaker has played. Media Mgmt keeps the most recent 3000.</p>`;
+  }
+
+
+  // Artists ---------------------------------------------------------------------------
+
+  async _loadArtists({ quiet = false } = {}) {
+    try {
+      this._artistData = await this._ws({ type: "media_mgmt/artists/list" });
+      if (!quiet) this._error = null;
+    } catch (err) {
+      this._artistData = this._artistData || { artists: [], speakers: [], search: false };
+      if (!quiet) this._error = this._errorText(err);
+    }
+    if (quiet && this._holdRender()) {
+      this._renderLater = true;
+      return;
+    }
+    this._render();
+  }
+
+  _linkNote(p) {
+    const link = p?.ma_link;
+    if (!link) return "";
+    if (link.available) {
+      const through = link.playing_through ? " · playing through it now" : "";
+      return `<p class="muted" style="margin:0">${icon("speaker")} Plays on ${esc(p.name)} through the Music Assistant player <strong>${esc(link.name || link.entity_id)}</strong> (${esc(LINK_LABELS[link.method] || link.method)})${through}.</p>`;
+    }
+    return `<p class="muted" style="margin:0">${icon("speaker")} ${esc(p.name)} has no Music Assistant player${link.detail ? `: ${esc(link.detail)}` : ""}. Media Mgmt tries a Sonos favourite, a link, or music played here before.
+      ${this._me?.is_admin || this._me?.allowed ? `<button class="btn small" data-goto="rules">Pick one under Rules</button>` : ""}</p>`;
+  }
+
+  _artistArt(image) {
+    return `<span class="a-art">${image ? `<img src="${esc(image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : icon("note")}</span>`;
+  }
+
+  _renderArtists() {
+    if (!this._artistData) {
+      if (!this._loadingArtists) {
+        this._loadingArtists = true;
+        this._loadArtists().finally(() => (this._loadingArtists = false));
+      }
+      return `<div class="toolbar">${this._picker()}</div>${loading("Loading saved artists…")}`;
+    }
+    const data = this._artistData;
+    const p = this._profile;
+    const results = this._artistResults;
+    const savedUris = new Set(data.artists.map((a) => a.uri).filter(Boolean));
+    const find = `<section class="card"><div class="card-body">
+      <div class="card-head"><h2>Find an artist</h2></div>
+      ${this._linkNote(p)}
+      <form id="artist-search" class="add-rule" novalidate>
+        <div class="search">${icon("search")}<input type="search" id="artist-q" placeholder="Artist name" value="${esc(this._artistQuery || "")}" aria-label="Artist name" autocomplete="off"></div>
+        ${data.search ? `<button type="submit" class="btn primary">${icon("search")} Search</button>` : ""}
+        <button type="button" class="btn${data.search ? "" : " primary"}" data-artist-add-name>${icon("plus")} Save by name</button>
+      </form>
+      ${data.search ? "" : `<small class="muted">Searching needs the Music Assistant integration. You can still save an artist by name: it plays through Music Assistant, a Sonos favourite, or music this speaker played before.</small>`}
+      ${this._note("artists")}
+      ${results ? (results.items.length
+        ? `<ul class="a-list">${results.items.map((r, i) => `<li>
+            ${this._artistArt(r.image)}
+            <span class="a-name">${esc(r.name)}${r.favorite ? ` <span class="chip tone-info">Favourite</span>` : ""}<small>${esc(r.provider || "")}</small></span>
+            <span class="acts">
+              <button class="btn small" data-artist-try="${i}" aria-label="Play ${esc(r.name)}">${icon("play")} Play</button>
+              ${savedUris.has(r.uri) ? `<span class="muted">Saved</span>` : `<button class="btn small primary" data-artist-pick="${i}" aria-label="Save ${esc(r.name)}">${icon("plus")} Save</button>`}
+            </span></li>`).join("")}</ul>`
+        : `<p class="muted">Music Assistant didn't find “${esc(results.query)}”.</p>`) : ""}
+    </div></section>`;
+
+    const rows = data.artists
+      .map((a) => `<li>
+        ${this._artistArt(a.image)}
+        <span class="a-name">${esc(a.name)}<small>${[a.aliases?.length ? `Also “${a.aliases.map(esc).join("”, “")}”` : "", a.provider ? esc(a.provider) : a.uri ? "" : "by name", a.speaker ? `usually on ${esc(data.speakers.find((s) => s.entity_id === a.speaker)?.name || a.speaker)}` : ""].filter(Boolean).join(" · ")}</small></span>
+        <span class="acts">
+          <label class="radio" title="Artist radio: similar music after theirs"><span class="switch"><input type="checkbox" data-artist-radio="${esc(a.id)}" ${a.radio ? "checked" : ""} aria-label="Artist radio for ${esc(a.name)}"><span></span></span> Radio</label>
+          <button class="btn small primary" data-artist-play="${esc(a.id)}" aria-label="Play ${esc(a.name)}">${icon("play")} Play</button>
+          <button class="btn small" data-artist-alias="${esc(a.id)}" aria-label="Other names for ${esc(a.name)}">${icon("edit")}</button>
+          <button class="btn small danger" data-artist-delete="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon("delete")}</button>
+        </span></li>`)
+      .join("");
+    const saved = `<section class="card"><div class="card-body">
+      <div class="card-head"><h2>Saved artists</h2><span class="muted">${data.artists.length || ""}</span></div>
+      <p class="muted" style="margin:0">Saved artists are shared by every speaker. Play one here, from an automation with <code>media_mgmt.play_artist</code>, or by voice or text with the Play an artist blueprint (“play ${esc(data.artists[0]?.name || "Brahms")} on ${esc(p?.name || "Kids Room")}”). The speaker's rules still apply.</p>
+      ${rows ? `<ul class="a-list">${rows}</ul>` : `<p class="muted">No saved artists yet. Find one above, or save one from Played music.</p>`}
+    </div></section>`;
+    return `<div class="toolbar">${this._picker()}<span class="muted">${p ? `Plays on ${esc(p.name)}` : ""}</span></div><div class="stack">${find}${saved}</div>`;
+  }
+
+  async _artistRequest(msg, note) {
+    this._busy = true;
+    try {
+      const res = await this._ws(msg);
+      this._notes.artists = typeof note === "function" ? note(res) : note;
+      this._error = null;
+      if (msg.type !== "media_mgmt/artists/play") await this._loadArtists({ quiet: true });
+      return res;
+    } catch (err) {
+      this._error = this._errorText(err);
+      return null;
+    } finally {
+      this._busy = false;
+      this._render();
+    }
+  }
+
+  async _playArtist(extra) {
+    const res = await this._artistRequest({ type: "media_mgmt/artists/play", entry_id: this._selected, ...extra }, (r) => r.message);
+    if (res && !res.ok) {
+      this._notes.artists = "";
+      this._error = res.message;
+      this._render();
+    }
+  }
+
+  async _searchArtists() {
+    const query = (this.shadowRoot.getElementById("artist-q")?.value || "").trim();
+    this._artistQuery = query;
+    if (!query) return this._showError("Type an artist's name.");
+    try {
+      const res = await this._ws({ type: "media_mgmt/artists/search", query, entry_id: this._selected });
+      this._artistResults = { query, items: res.items };
+      this._error = null;
+      this._notes.artists = "";
+    } catch (err) {
+      this._artistResults = null;
+      this._error = this._errorText(err);
+    }
+    this._render();
   }
 
   // Schedules -------------------------------------------------------------------------
@@ -1575,7 +1746,7 @@ class MediaMgmtPanel extends HTMLElement {
     }[d.play_kind] || [];
     const help = {
       artist: caps.music_assistant
-        ? "Music Assistant finds the artist's music, so any artist works."
+        ? `Music Assistant${p.ma_link?.name ? ` (${p.ma_link.name})` : ""} finds the artist's music, so any artist works.`
         : "Pick an artist that's played on this speaker before. For a whole artist's music on any speaker, add the speaker through Music Assistant, or use a playlist or favourite.",
       album: caps.music_assistant ? "Music Assistant finds the album." : "Pick an album that's played on this speaker before.",
       track: caps.music_assistant ? "Music Assistant finds the song." : "Pick a song that's played on this speaker before. Turn on repeat to keep it going.",
@@ -1832,7 +2003,21 @@ class MediaMgmtPanel extends HTMLElement {
         <div class="form-actions"><button type="submit" class="btn primary">Save warnings</button>${this._note("warnings")}</div>
       </form></div></section>`;
 
-    return `<div class="toolbar">${this._picker()}</div><div class="stack">${listening}${filter}${volume}${warnings}</div>`;
+    const link = d.ma_link || {};
+    const players = d.ma_players || [];
+    const ma = `<section class="card"><div class="card-body">
+      <div class="card-head"><h2>Music Assistant</h2>${link.available ? `<span class="chip tone-good">Linked</span>` : `<span class="chip tone-muted">Not linked</span>`}</div>
+      <p class="muted" style="margin:0">${link.available
+        ? `Artists, albums and playlists play through <strong>${esc(link.name || link.entity_id)}</strong> (${esc(LINK_LABELS[link.method] || link.method)}). While it plays, the rules and the volume cap act on it.`
+        : esc(link.detail || "No Music Assistant player for this speaker.")}</p>
+      <form id="ma-player" novalidate>
+        <div class="field"><label for="ma_player">Music Assistant player</label>
+          <select id="ma_player"><option value="">Find it automatically</option>${players.map((m) => `<option value="${esc(m.entity_id)}" ${m.entity_id === d.music_assistant_player ? "selected" : ""}>${esc(m.name)} (${esc(m.entity_id)})</option>`).join("")}</select>
+          <small>${players.length ? "Media Mgmt matches Sonos, AirPlay (HomePod) and Home Assistant players by themselves. Pick one only if it found the wrong one, or none." : "Add the Music Assistant integration to play any artist on this speaker, by name."}</small></div>
+        <div class="form-actions"><button type="submit" class="btn primary" ${players.length ? "" : "disabled"}>Save</button>${this._note("ma_player")}</div>
+      </form></div></section>`;
+
+    return `<div class="toolbar">${this._picker()}</div><div class="stack">${listening}${filter}${volume}${warnings}${ma}</div>`;
   }
 
   _syncRules() {
@@ -2135,6 +2320,44 @@ class MediaMgmtPanel extends HTMLElement {
       this._render();
       return;
     }
+    if (ds.saveArtist) {
+      this._artistRequest({ type: "media_mgmt/artists/save", artist: { name: ds.saveArtist }, find: true }, (r) => `Saved ${r.artist.name} to Artists`).then(() => {
+        this._notes.block = this._notes.artists;
+        this._render();
+      });
+      return;
+    }
+    if (el.hasAttribute("data-artist-add-name")) {
+      const name = (this.shadowRoot.getElementById("artist-q")?.value || "").trim();
+      if (!name) return this._showError("Type an artist's name.");
+      this._artistRequest({ type: "media_mgmt/artists/save", artist: { name }, find: !!this._artistData?.search }, (r) => `Saved ${r.artist.name}`);
+      return;
+    }
+    if (ds.artistPick !== undefined || ds.artistTry !== undefined) {
+      const r = this._artistResults?.items[Number(ds.artistPick ?? ds.artistTry)];
+      if (!r) return;
+      if (ds.artistTry !== undefined) this._playArtist({ artist: r.name, uri: r.uri, media_type: "artist" });
+      else this._artistRequest({ type: "media_mgmt/artists/save", artist: { name: r.name, uri: r.uri, provider: r.provider, image: r.image } }, `Saved ${r.name}`);
+      return;
+    }
+    if (ds.artistPlay) {
+      this._playArtist({ artist: ds.artistPlay });
+      return;
+    }
+    if (ds.artistAlias) {
+      const a = this._artistData?.artists.find((x) => x.id === ds.artistAlias);
+      if (!a) return;
+      const value = window.prompt(`Other names for ${a.name}, separated by commas (what you might say or type)`, (a.aliases || []).join(", "));
+      if (value === null) return;
+      this._artistRequest({ type: "media_mgmt/artists/save", artist: { ...a, aliases: value } }, `Saved ${a.name}`);
+      return;
+    }
+    if (ds.artistDelete) {
+      const a = this._artistData?.artists.find((x) => x.id === ds.artistDelete);
+      if (!window.confirm(`Remove ${a?.name ?? "this artist"} from saved artists?`)) return;
+      this._artistRequest({ type: "media_mgmt/artists/delete", artist_id: ds.artistDelete }, `Removed ${a?.name ?? ""}`);
+      return;
+    }
     if (ds.scheduleArtist) {
       this._selected = ds.id;
       this._tab = "schedules";
@@ -2194,6 +2417,11 @@ class MediaMgmtPanel extends HTMLElement {
     }
     if (ds.toggle) {
       this._action(ds.id, ds.toggle, { enabled: el.checked });
+      return;
+    }
+    if (ds.artistRadio) {
+      const a = this._artistData?.artists.find((x) => x.id === ds.artistRadio);
+      if (a) this._artistRequest({ type: "media_mgmt/artists/save", artist: { ...a, radio: el.checked } }, el.checked ? `Artist radio on for ${a.name}` : `Artist radio off for ${a.name}`);
       return;
     }
     if (ds.schedEnable) {
@@ -2269,6 +2497,7 @@ class MediaMgmtPanel extends HTMLElement {
       this._syncSchedForm();
       return this._saveSchedule();
     }
+    if (form.id === "artist-search") return this._searchArtists();
     if (form.id === "add-rule") {
       const kind = this.shadowRoot.getElementById("rule-kind").value;
       const value = this.shadowRoot.getElementById("rule-value").value.trim();
@@ -2293,6 +2522,7 @@ class MediaMgmtPanel extends HTMLElement {
       const quiet = d.windows.map((w) => `${w.start}-${w.end}${w.label.trim() ? ` ${w.label.trim().replace(/,/g, "")}` : ""}`).join(", ");
       return this._saveSettings("listening", { ...numbers, quiet_windows: quiet, limit_action: d.limit_action });
     }
+    if (form.id === "ma-player") return this._saveSettings("ma_player", { music_assistant_player: this.shadowRoot.getElementById("ma_player")?.value || null });
     if (form.id === "filter-action") return this._saveSettings("filter_action", { filter_action: d.filter_action });
     if (form.id === "volume") return this._saveSettings("volume", { max_volume: Number(d.max_volume) });
     if (form.id === "warnings") {
