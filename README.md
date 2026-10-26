@@ -16,6 +16,7 @@ Media Mgmt watches a speaker through the integration that already runs it in Hom
 - **Keeps quiet windows.** No music during school hours, or after bedtime, except what a schedule plays.
 - **Blocks music.** Songs, artists, albums, apps and words in a title are skipped the moment they start. Block anything that's played before with one tap, from the history of every song the speaker has played.
 - **Caps the volume.** Turned straight back down if someone cranks it.
+- **Plays an artist when asked.** Type or say "play Brahms on the kids room", tap **Play** on a saved artist, or call `media_mgmt.play_artist` from an automation. It plays through Music Assistant when the speaker has it, so any artist works, on Sonos, HomePod and Music Assistant speakers alike. The speaker's rules still apply.
 - **Schedules music.** Start an artist, playlist or favourite at a set time on the nights you pick, then fade it out and stop it at a set time. A schedule with only a stop time is a nightly sleep timer.
 - **Sets sleep timers.** Stop the music in 15, 30, 45 or 60 minutes, fading it out first.
 - **Keeps analytics.** Listening time per day, songs played, top artists, songs, albums and apps, and when in the day music plays, for each speaker or all of them together.
@@ -59,6 +60,7 @@ Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins,
 <p>
 <img src="docs/images/panel-dashboard.png" alt="Dashboard: speakers collapsed to just the player, each with playback controls, volume and its listening time" width="260">
 <img src="docs/images/panel-schedule.png" alt="Schedule editor: start music at 7:30 PM, stop at 8:30 PM, play an artist picked from those played on this speaker before" width="260">
+<img src="docs/images/panel-artists.png" alt="Artists: search Music Assistant for an artist, save it, and play it on the speaker" width="260">
 </p>
 
 *Screenshots use sample data.*
@@ -72,9 +74,10 @@ Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins,
   - links to the speaker and every Media Mgmt entity
 - **Activity.** A 24-hour strip of when music played, coloured by artist, and a log of every song, block, limit, schedule, sleep timer and change, with **Block** next to each song. Step back through past days.
 - **Analytics.** Music per day against the daily limit, the hours music plays, and top artists, songs, albums and apps over 7, 30 or 90 days. Pick a speaker, or **All speakers** for the whole house. Block an artist or song straight from the charts.
-- **Played music.** Every song the speaker has played (the most recent 3000), searchable, by most recent, most played or most time, or grouped by artist. Block or unblock songs and artists, or tap **Schedule** to play an artist at bedtime.
+- **Played music.** Every song the speaker has played (the most recent 3000), searchable, by most recent, most played or most time, or grouped by artist. Block or unblock songs and artists, tap **Save** to add an artist to **Artists**, or **Schedule** to play an artist at bedtime.
+- **Artists.** Search Music Assistant for an artist and play or save them, or save one by name. Saved artists are shared by every speaker. Each can have other names to ask for them by ("Brahms" for Johannes Brahms), and artist radio, which keeps similar music going once their songs run out. Shows which Music Assistant player the speaker plays through.
 - **Schedules.** Add, edit, turn on and off, try out and delete schedules and [volume limits](#volume-limits).
-- **Rules.** Daily listening time, warning time, quiet windows, what happens when music isn't allowed, the list of blocked music (add or remove anything), what happens when blocked music plays, the volume cap, and spoken warnings.
+- **Rules.** Daily listening time, warning time, quiet windows, what happens when music isn't allowed, the list of blocked music (add or remove anything), what happens when blocked music plays, the volume cap, spoken warnings, and the speaker's Music Assistant player.
 - **Speakers** (admins). Add a speaker, or stop managing one. Removing a speaker deletes its history, rules and schedules; the speaker itself isn't touched.
 - **Access** (admins). Who besides admins can use Media Mgmt.
 
@@ -121,6 +124,58 @@ A volume limit is a schedule that plays nothing. Between its start and end times
 
 Add one with **Add volume limit** under **Schedules**, or pick **Only limit the volume** in any schedule. It takes effect as soon as it's saved if it's already inside its times, and after a restart. If the speaker's own volume cap is lower, that still applies. The dashboard shows a limit while it's on.
 
+## Playing an artist
+
+Ask for an artist and Media Mgmt plays them on the speaker you name, or the one in the room you're in:
+
+- **By text or voice:** "play Brahms on the kids room", or just "play Brahms" to a voice assistant in that room. Add the [blueprint](#voice-and-text) below.
+- **With your AI assistant:** if your voice assistant uses an AI conversation agent (OpenAI, Google, Anthropic, Ollama and others) with **Control Home Assistant** turned on, it gets a Media Mgmt tool to play an artist, as long as the speaker is exposed to Assist.
+- **From the sidebar app:** **Play** next to a saved artist or a search result under **Artists**.
+- **From an automation:** the `media_mgmt.play_artist` action. It returns what played, or why it didn't.
+- **From a dashboard:** turn on the speaker's **Play artist** select (a list of saved artists) or the **Play** buttons (one per saved artist and speaker). They start turned off; turn them on under the profile's entities.
+
+The speaker's rules still apply. Blocked artists aren't played, nothing plays during a quiet window or once the daily limit is used up (the reply says why), and the volume never goes above the cap. Adult mode lifts these, as usual. Anyone may ask for music this way, kids included, since it's the same as pressing play; changing saved artists needs [access](#who-can-use-media-mgmt).
+
+### How it plays
+
+| Speaker | How |
+| --- | --- |
+| **Music Assistant player** | Music Assistant finds the artist on your music services and plays them. Best for any artist. |
+| **Sonos** | Through its Music Assistant player, if Music Assistant has one (the Sonos provider). Otherwise a Sonos favourite with the artist's name, a share link, or music that's played on it before. |
+| **HomePod and Apple TV** | Through its Music Assistant player (the AirPlay provider). Home Assistant's Apple TV integration can't search or start music, so without Music Assistant it says how to fix that. |
+| **Any other speaker** | Through its Music Assistant player if there is one, otherwise `media_player.play_media`, then music that's played on it before. |
+
+Media Mgmt finds a speaker's Music Assistant player by itself: the same Sonos ID, the AirPlay address of a HomePod, the player Music Assistant made from the Home Assistant entity, the same name, or the only Music Assistant player in the speaker's area. **Rules → Music Assistant** shows which one it found and how; pick a different one there if it's wrong. While the Music Assistant player is playing, the rules, the volume cap, schedules and sleep timers act on it.
+
+Music Assistant picks the result that matches the name, or a close one ("beatles" for The Beatles). If nothing close turns up, nothing plays and the reply says so, rather than playing someone else.
+
+### Set up Music Assistant
+
+1. Install the [Music Assistant server](https://music-assistant.io/installation/) (the Home Assistant app on Home Assistant OS) and the [Music Assistant integration](https://www.home-assistant.io/integrations/music_assistant/).
+2. In Music Assistant, add a [music provider](https://music-assistant.io/music-providers/), such as Spotify, Apple Music, Tidal, YouTube Music or your own files.
+3. Add player providers for your speakers:
+   - **HomePods:** the [AirPlay provider](https://music-assistant.io/player-support/airplay/). In the Home app, set **Home Settings → Speakers & TV → Allow Speaker & TV Access** to **Everyone on the Same Network**, or the HomePod won't accept Music Assistant.
+   - **Sonos:** the [Sonos provider](https://music-assistant.io/player-support/sonos/) (S2 speakers).
+   - Anything else Home Assistant can play to: the [Home Assistant players provider](https://music-assistant.io/player-support/ha/).
+4. For voice and AI assistants, expose the speakers (or their Music Assistant players) under **Settings → Voice assistants → Expose**.
+
+Check **Rules → Music Assistant** for each speaker: it should say **Linked**.
+
+### Voice and text
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbisman-automations%2Fha-media-mgmt%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmedia_mgmt%2Fplay_artist.yaml)
+
+Import the **Media Mgmt — play an artist by voice** blueprint and create an automation from it. It answers:
+
+- "play *artist* on [the] *speaker*", "play *artist* in [the] *speaker*", "put on *artist* on [the] *speaker*"
+- "play [some] [music by] *artist*" and "put on [some] *artist*": the speaker in the same area as the voice assistant, else the artist's usual speaker, else your only speaker
+
+The speaker can be its name, its area, or a shorter name ("kids room" for Kids Room Sonos). Change the sentences, and turn radio and shuffle on or off, in the automation. The reply says what's playing, or why it can't play. Works with Assist in the app, voice satellites and the Assist button on dashboards.
+
+### Saved artists
+
+Save the artists you play often under **Artists**, or with **Save** in **Played music**. Each one keeps Music Assistant's exact match (so "Brahms" always plays the same Brahms), other names to ask for them by, artist radio, and optionally shuffle, a volume and a usual speaker. Asking for a saved artist by any of their names plays that match.
+
 ## Blocked music
 
 Block a song, artist, album, app or word, and it's skipped as soon as it starts (or paused or stopped, if you prefer, or if the speaker can't skip).
@@ -137,6 +192,8 @@ The **Music filter** switch turns blocking on and off. Blocked music is logged a
 ## Who can use Media Mgmt
 
 Admins can always use Media Mgmt. To let someone else in, such as a parent who isn't a Home Assistant admin, open the sidebar app's **Access** tab, check them, and save. Everyone else is turned away, kids included. The same rule covers the sidebar app, Media Mgmt's switches, mode select and buttons wherever they're used, and the `media_mgmt.*` actions. Automations and scripts that Home Assistant runs on its own aren't affected.
+
+Playing an artist is the exception: `media_mgmt.play_artist`, the voice blueprint, the AI assistant tool, and the **Play artist** select and **Play** buttons work for anyone, like pressing play, and the speaker's rules still decide whether the music plays. Saving, changing and searching artists in the sidebar app needs access.
 
 ## Spoken warnings
 
@@ -163,12 +220,14 @@ Each profile is a device named like **Media Mgmt — Kids Room**, linked to the 
 | **Blocked today** (sensor) | How many times blocked music started, and the last one. |
 | **Sleep timer** (sensor) | When the sleep timer stops the music. |
 | **Next schedule** (sensor) | When the next schedule starts, and every schedule as attributes. |
+| **Play artist** (select, off at first) | Pick a saved artist to play it on this speaker. |
+| **Play** *artist* (buttons, off at first) | One per saved artist: plays them on this speaker. |
 
 Counters, extra time and Stop music now reset at midnight. Mode, the music filter, adult mode, sleep timers and schedules survive restarts. Media Mgmt keeps 90 days of activity, about a year of daily totals, and the last 3000 songs played.
 
 ## Actions
 
-All actions take the profile (`profile_id`) to act on.
+All actions take the profile (`profile_id`) to act on, except `play_artist`, which can also find the speaker by name or area.
 
 | Action | What it does |
 | --- | --- |
@@ -181,6 +240,7 @@ All actions take the profile (`profile_id`) to act on.
 | `media_mgmt.set_sleep_timer` | Stop the music in `minutes`, fading out over the last `fade_minutes`. |
 | `media_mgmt.cancel_sleep_timer` | Cancel the sleep timer. |
 | `media_mgmt.run_schedule` | Start a schedule's music now, by name or ID. |
+| `media_mgmt.play_artist` | Play an artist (or album, song or playlist) by name on a speaker, picked by `profile_id`, `entity_id`, `speaker` name or `area_id`. Optional `radio_mode`, `shuffle`, `volume`, `uri`, `media_type` and `enqueue`. Returns `ok`, `message`, what played and how. Doesn't need a `profile_id` when there's one speaker. |
 
 ```yaml
 action: media_mgmt.block_media
@@ -188,6 +248,15 @@ data:
   profile_id: 01JABCDEF...   # pick it from the dropdown in the UI
   kind: artist
   current: true              # whoever's playing now
+```
+
+```yaml
+action: media_mgmt.play_artist
+data:
+  artist: Johannes Brahms
+  speaker: Kids Room
+  radio_mode: true
+response_variable: played    # played.ok, played.message ("Playing Johannes Brahms on Kids Room")
 ```
 
 ```yaml
@@ -205,6 +274,7 @@ data:
 | `media_mgmt_media_blocked` | Blocked music started. Includes `title`, `artist`, `album`, `source`, the `rule_kind` and `rule` it broke, the `action` and whether it `acted` (false in monitor-only mode). |
 | `media_mgmt_warning` | Listening time is about to run out. Includes `remaining_minutes`. |
 | `media_mgmt_enforcement_changed` | The enforcement state changed. Includes `state`, `previous_state`, `reason`, `quiet_window` and `schedule`. |
+| `media_mgmt_play` | Someone asked to play an artist. Includes `name`, `ok`, `message`, `reason` (`blocked`, `limit`, `not_found`, `unsupported`, `failed` or `unavailable`), `method` (how it played), `entity_id` (the speaker), `played_on` (the player told to play) and `by`. |
 | `media_mgmt_schedule` | A schedule `started`, `stopped` or `failed`, or a volume limit `limit_started` or `limit_ended`, with `schedule` and `detail`. |
 
 For example, to get a phone notification when blocked music is skipped:
@@ -236,6 +306,7 @@ Change these in the sidebar app (**Rules**), or under **Configure** on the profi
 | When blocked music plays | Skip to the next song | Or pause, or stop. |
 | Maximum volume | 100% (no cap) | Turned back down above this. |
 | Voice, say it on this speaker, also say it on | none | See [Spoken warnings](#spoken-warnings). |
+| Music Assistant player | found automatically | See [How it plays](#how-it-plays). |
 
 ## Development
 

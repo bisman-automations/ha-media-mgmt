@@ -10,7 +10,9 @@ The sidebar app is the product. Every setting must be manageable there, not only
 | --- | --- |
 | `manager.py` | `MediaManager`, one per speaker (config entry). Counts listening, makes decisions, enforces limits, filters, volume caps, sleep timers and schedules. |
 | `player.py` | Reads the speaker's state and sends it commands, with fallbacks (skip → pause → stop → turn off) for what the speaker supports. |
-| `state.py`, `quiet.py`, `schedules.py`, `filters.py`, `media.py`, `activity.py` | **Pure modules: no Home Assistant imports.** Unit-tested standalone through `tests/conftest.py`. Keep them pure. |
+| `ma_link.py`, `playback.py` | Finds the speaker's Music Assistant player (`resolve`), and plays an artist, album, song or playlist through it or the fallbacks. While the Music Assistant player plays, `player.target` is that player and every read and command goes to it. |
+| `targets.py`, `saved.py`, `intent.py`, `llm.py` | Playing an artist on request: which speaker (`find_speaker`), the home's saved artists, the `MediaMgmtPlayArtist` intent and the AI assistant tool. `blueprints/automation/media_mgmt/play_artist.yaml` is the text and voice blueprint. |
+| `state.py`, `quiet.py`, `schedules.py`, `filters.py`, `media.py`, `activity.py`, `artists.py` | **Pure modules: no Home Assistant imports.** Unit-tested standalone through `tests/conftest.py`. Keep them pure. |
 | `storage.py` | `ProfileState` (today's counters and controls), the activity log, and schedules, each in its own `Store`. |
 | `websocket.py` | The sidebar app's API (`media_mgmt/*` commands). |
 | `frontend/media-mgmt-panel.js` | The sidebar app: one plain web component, **no build step**. |
@@ -25,7 +27,7 @@ The sidebar app is the product. Every setting must be manageable there, not only
 - **Schedules live in their own `Store`, not in options**, so editing them never touches the config entry.
 - **Stored data must stay backward compatible.** New `ProfileState` fields need defaults, since unknown keys are dropped on load. New schedule fields must default so that schedules saved by older versions load unchanged (`load_schedules` skips anything that no longer validates, which would silently delete a user's schedule).
 - **Support Home Assistant 2026.3 and newer** (`hacs.json`). Device linking has two paths, chosen by `hasattr(registry, "async_get_devices")`: 2026.8+ links devices through shared identifiers, older versions use `via_device` and add the entry to the speaker's device. On 2026.8+ never pass `via_device` (removed in 2027.8) and never read `DeviceEntry.config_entries`. `DeviceInfo` is a dataclass from 2026.11: build it with keyword arguments, never as a dict.
-- **Access checks:** every websocket command uses `@require_access`, admin-only ones (speakers, access) use `require_admin`, and entity actions and services call `async_ensure_allowed`. Automations (no user) are always allowed.
+- **Access checks:** every websocket command uses `@require_access`, admin-only ones (speakers, access) use `require_admin`, and entity actions and services call `async_ensure_allowed`. Automations (no user) are always allowed. Playing an artist (`play_artist`, the intent, the Play artist select and buttons) is deliberately open to everyone, like pressing play; the rules still decide. Changing saved artists needs access.
 - **Panel:** escape everything with `esc()`. Wrap every `localStorage` use in try/catch. Keep using Home Assistant's theme variables so it works in light and dark mode. Check it at phone width (390px) as well as desktop.
 - `strings.json` and `translations/en.json` must be identical.
 

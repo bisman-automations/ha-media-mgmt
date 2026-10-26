@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-26
+
+### Added
+
+- **Play an artist by name,** on any speaker Media Mgmt manages: "play Brahms on the kids room". It plays through Music Assistant when the speaker has a Music Assistant player, so any artist on your music services works, on Sonos, HomePod and Music Assistant speakers alike. See [Playing an artist](README.md#playing-an-artist).
+  - **The `media_mgmt.play_artist` action** finds the speaker by profile, entity, name or area, and returns what played or why it didn't. Options: artist radio, shuffle, volume, a URI, the type (artist, album, song, playlist) and how to queue it.
+  - **A blueprint for text and voice** ([import it](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbisman-automations%2Fha-media-mgmt%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmedia_mgmt%2Fplay_artist.yaml)): "play *artist* on *speaker*", or "play *artist*" for the speaker in the voice assistant's room. The reply says what's playing, or why not.
+  - **A tool for AI assistants** (OpenAI, Google, Anthropic, Ollama and others with Control Home Assistant on), offered while a managed speaker is exposed to Assist.
+  - **Artists** in the sidebar app: search Music Assistant, play a result, or save it. **Save** next to an artist in **Played music** too.
+  - **Saved artists,** shared by every speaker, with other names to ask for them by, artist radio, and Music Assistant's exact match so the same artist plays every time.
+  - **Play artist** select and **Play** *artist* buttons for dashboards. Both start turned off.
+  - A `media_mgmt_play` event, and a line in the activity log, each time someone asks for an artist.
+- **Finds each speaker's Music Assistant player** by its Sonos ID, a HomePod's AirPlay address, the Home Assistant entity Music Assistant made it from, its name, or its area. **Rules → Music Assistant** shows which one and how, and lets you pick one by hand. Diagnostics include it.
+
+### Changed
+
+- **The rules follow the music into Music Assistant.** While a speaker's Music Assistant player is playing, blocked music, limits, quiet windows, the volume cap, schedules and sleep timers act on that player.
+- **Schedules play artists, albums, songs and playlists the same way,** through the speaker's Music Assistant player when it has one, then a Sonos favourite or link, then music played on it before. A HomePod without Music Assistant now says how to fix it instead of failing quietly.
+
+
 ## [1.1.0] - 2026-10-17
 
 ### Added
@@ -66,7 +86,8 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.2.0...v0.3.0
