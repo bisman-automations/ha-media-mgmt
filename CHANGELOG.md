@@ -1,8 +1,9 @@
 # Changelog
 
-All notable changes to this project are documented here.
+All notable changes to this project are documented in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -24,7 +25,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **The rules follow the music into Music Assistant.** While a speaker's Music Assistant player is playing, blocked music, limits, quiet windows, the volume cap, schedules and sleep timers act on that player.
 - **Schedules play artists, albums, songs and playlists the same way,** through the speaker's Music Assistant player when it has one, then a Sonos favourite or link, then music played on it before. A HomePod without Music Assistant now says how to fix it instead of failing quietly.
-
 
 ## [1.1.0] - 2026-10-17
 

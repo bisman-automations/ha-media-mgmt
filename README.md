@@ -1,12 +1,13 @@
-<p align="center"><img src="docs/logo.svg" alt="Media Mgmt logo: a speaker with a music note" width="120"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/bisman-automations/ha-media-mgmt/main/docs/logo.svg" alt="Media Mgmt logo: a speaker with a music note" width="120"></p>
 
 # Media Mgmt
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/bisman-automations/ha-media-mgmt)](https://github.com/bisman-automations/ha-media-mgmt/releases)
-[![Validate](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml)
 [![Test](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/test.yml/badge.svg)](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/test.yml)
+[![Validate](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/bisman-automations/ha-media-mgmt)](LICENSE)
 
 > Parental controls and analytics for speakers in Home Assistant. Give a speaker a **daily listening limit**, **block songs, artists and apps** (including anything that's played before), **cap the volume**, set **sleep timers**, and **schedule bedtime music** that fades out on its own.
 
@@ -24,9 +25,9 @@ Media Mgmt watches a speaker through the integration that already runs it in Hom
 
 It's the music companion to [TV Mgmt](https://github.com/bisman-automations/ha-tv-mgmt), and works the same way.
 
-## Install
+## Installation
 
-### 1. Install with HACS
+### HACS
 
 [![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bisman-automations&repository=ha-media-mgmt&category=integration)
 
@@ -35,13 +36,11 @@ It's the music companion to [TV Mgmt](https://github.com/bisman-automations/ha-t
 
 Requires **Home Assistant 2026.3 or newer**.
 
-<details>
-<summary>Manual install (no HACS)</summary>
+### Manual
 
-Copy `custom_components/media_mgmt/` into your `config/custom_components/` folder and restart Home Assistant.
-</details>
+Download `media_mgmt.zip` from the [latest release](https://github.com/bisman-automations/ha-media-mgmt/releases/latest), unzip it into `config/custom_components/media_mgmt/`, and restart Home Assistant.
 
-### 2. Add your speakers
+## Setup
 
 Open **Media Mgmt** in the sidebar, go to **Speakers**, pick a speaker and tap **Add**. Repeat for each speaker you want to manage. A new speaker starts with no limits and nothing blocked, so nothing changes until you set rules.
 
@@ -308,13 +307,47 @@ Change these in the sidebar app (**Rules**), or under **Configure** on the profi
 | Voice, say it on this speaker, also say it on | none | See [Spoken warnings](#spoken-warnings). |
 | Music Assistant player | found automatically | See [How it plays](#how-it-plays). |
 
+## Troubleshooting
+
+### Diagnostics and debug logs
+
+When something goes wrong, download diagnostics from **Settings → Devices & services → Media Mgmt → ⋮ → Download diagnostics** and check the file before you share it.
+
+For debug logs, use **Enable debug logging** on the integration page, or add this to `configuration.yaml` and restart:
+
+```yaml
+logger:
+  logs:
+    custom_components.media_mgmt: debug
+```
+
+Then open an [issue](https://github.com/bisman-automations/ha-media-mgmt/issues/new/choose) with the diagnostics, the log, and your Home Assistant and Media Mgmt versions.
+
 ## Development
 
 Tests cover the rules, quiet windows, the music filter, schedules and the activity log on their own, and the integration running inside Home Assistant: setup, the config flow, limits, blocked music, the volume cap, sleep timers, schedules and the websocket API.
 
+The brand icons are rendered from `docs/logo.svg` with `python scripts/make_brand.py`.
+
+Tests run inside a real Home Assistant through
+[pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component).
+You need Python 3.14 for the current Home Assistant.
+
 ```bash
+python3.14 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_test.txt
+ruff check . && ruff format --check .
 pytest
 ```
 
-The brand icons are rendered from `docs/logo.svg` with `python scripts/make_brand.py`.
+To test against the oldest supported Home Assistant (2026.3), use Python 3.14 and
+`pip install -r requirements_test_min.txt` instead.
+
+CI runs the same checks on every push and pull request, on both Home Assistant
+versions, plus hassfest, HACS validation and the shared repo standards, using the
+workflows in [bisman-automations/.github](https://github.com/bisman-automations/.github).
+Releases are drafted from [CHANGELOG.md](CHANGELOG.md); see [CLAUDE.md](CLAUDE.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
