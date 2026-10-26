@@ -24,8 +24,18 @@ variants = {"": SVG, "dark_": SVG.replace(FRAME, FRAME.replace("#263238", "#cfd8
 for prefix, svg in variants.items():
     for suffix, size in (("", 256), ("@2x", 512)):
         path = OUT / f"{prefix}icon{suffix}.png"
-        cairosvg.svg2png(bytestring=svg.encode(), write_to=str(path), output_width=size, output_height=size)
+        cairosvg.svg2png(
+            bytestring=svg.encode(),
+            write_to=str(path),
+            output_width=size,
+            output_height=size,
+        )
         print("wrote", path)
 
-cairosvg.svg2png(bytestring=SVG.encode(), write_to=str(ROOT / "docs" / "logo.png"), output_width=512, output_height=512)
+cairosvg.svg2png(
+    bytestring=SVG.encode(),
+    write_to=str(ROOT / "docs" / "logo.png"),
+    output_width=512,
+    output_height=512,
+)
 print("wrote", ROOT / "docs" / "logo.png")

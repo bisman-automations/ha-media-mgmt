@@ -137,13 +137,18 @@ SENSORS: tuple[MediaMgmtSensorDescription, ...] = (
         key="blocked_today",
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda m: m.state.blocked_count,
-        attrs_fn=lambda m: {"last_blocked": m.state.last_blocked, "last_blocked_at": m.state.last_blocked_at},
+        attrs_fn=lambda m: {
+            "last_blocked": m.state.last_blocked,
+            "last_blocked_at": m.state.last_blocked_at,
+        },
     ),
     MediaMgmtSensorDescription(
         key="sleep_timer",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda m: m.state.sleep_until_dt,
-        attrs_fn=lambda m: {"fade_minutes": m.state.sleep_fade if m.state.sleep_until else None},
+        attrs_fn=lambda m: {
+            "fade_minutes": m.state.sleep_fade if m.state.sleep_until else None
+        },
     ),
     MediaMgmtSensorDescription(
         key="next_schedule",
@@ -152,7 +157,13 @@ SENSORS: tuple[MediaMgmtSensorDescription, ...] = (
         attrs_fn=lambda m: {
             "schedule": _next_schedule(m)[1],
             "schedules": [
-                {"name": s.name, "enabled": s.enabled, "start": s.start, "stop": s.stop, "days": s.days}
+                {
+                    "name": s.name,
+                    "enabled": s.enabled,
+                    "start": s.start,
+                    "stop": s.stop,
+                    "days": s.days,
+                }
                 for s in m.schedules
             ],
         },
@@ -161,7 +172,9 @@ SENSORS: tuple[MediaMgmtSensorDescription, ...] = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: MediaMgmtConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: MediaMgmtConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager = entry.runtime_data
     async_add_entities(MediaMgmtSensor(manager, d) for d in SENSORS)
@@ -170,7 +183,9 @@ async def async_setup_entry(
 class MediaMgmtSensor(MediaMgmtEntity, SensorEntity):
     entity_description: MediaMgmtSensorDescription
 
-    def __init__(self, manager: MediaManager, description: MediaMgmtSensorDescription) -> None:
+    def __init__(
+        self, manager: MediaManager, description: MediaMgmtSensorDescription
+    ) -> None:
         super().__init__(manager, description.key)
         self.entity_description = description
 

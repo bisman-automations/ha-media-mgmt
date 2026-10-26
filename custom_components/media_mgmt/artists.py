@@ -31,7 +31,11 @@ def provider_of(uri: str | None) -> str | None:
         return None
     if uri.startswith(("http://", "https://")):
         host = uri.split("://", 1)[1].split("/", 1)[0].lower()
-        parts = [p for p in host.split(".") if p not in ("www", "open", "music", "com", "co", "uk", "net", "listen")]
+        parts = [
+            p
+            for p in host.split(".")
+            if p not in ("www", "open", "music", "com", "co", "uk", "net", "listen")
+        ]
         return parts[0] if parts else host
     scheme, sep, _ = uri.partition("://")
     if not sep:
@@ -111,7 +115,7 @@ def load_artists(raw: Any) -> list[SavedArtist]:
     for item in raw or []:
         try:
             artists.append(SavedArtist.from_dict(item))
-        except (AttributeError, TypeError, ValueError):
+        except AttributeError, TypeError, ValueError:
             continue  # skip anything stored that isn't an artist
     return artists[:MAX_ARTISTS]
 
@@ -140,7 +144,12 @@ def best_match(results: list[dict[str, Any]], name: str) -> dict[str, Any] | Non
     exact = [r for r in items if norm(r.get("name")) == wanted]
     if exact:
         # Prefer the user's library copy, then a favourite.
-        exact.sort(key=lambda r: (not str(r["uri"]).startswith("library://"), not r.get("favorite")))
+        exact.sort(
+            key=lambda r: (
+                not str(r["uri"]).startswith("library://"),
+                not r.get("favorite"),
+            )
+        )
         return exact[0]
     return next((r for r in items if _close(norm(r.get("name")), wanted)), None)
 

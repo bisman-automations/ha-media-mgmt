@@ -81,28 +81,47 @@ def is_uri(value: str | None) -> bool:
         return False
     return (
         is_share_link(value)
-        or value.startswith(("media-source://", "library://", "spotify:", "apple_music:"))
+        or value.startswith(
+            ("media-source://", "library://", "spotify:", "apple_music:")
+        )
         or ("://" in value and " " not in value)
         or (":" in value and " " not in value)
     )
 
 
 async def ma_search(
-    hass: HomeAssistant, config_entry_id: str | None, name: str, media_type: str, *, limit: int = 5
+    hass: HomeAssistant,
+    config_entry_id: str | None,
+    name: str,
+    media_type: str,
+    *,
+    limit: int = 5,
 ) -> list[dict[str, Any]] | None:
     """Music Assistant search results, or None when search isn't available."""
-    if not config_entry_id or not hass.services.has_service(MUSIC_ASSISTANT_DOMAIN, "search"):
+    if not config_entry_id or not hass.services.has_service(
+        MUSIC_ASSISTANT_DOMAIN, "search"
+    ):
         return None
     try:
         response = await hass.services.async_call(
             MUSIC_ASSISTANT_DOMAIN,
             "search",
-            {"config_entry_id": config_entry_id, "name": name, "media_type": [media_type], "limit": limit},
+            {
+                "config_entry_id": config_entry_id,
+                "name": name,
+                "media_type": [media_type],
+                "limit": limit,
+            },
             blocking=True,
             return_response=True,
         )
     except (HomeAssistantError, ValueError) as err:
-        _LOGGER.warning("Media Mgmt: Music Assistant search for %s %r failed: %s", media_type, name, err)
+        _LOGGER.warning(
+            "Media Mgmt: Music Assistant search for %s %r failed: %s",
+            media_type,
+            name,
+            err,
+        )
         return None
     key = "radio" if media_type == "radio" else f"{media_type}s"
     items = (response or {}).get(key) or []
@@ -120,7 +139,8 @@ def result_item(item: dict[str, Any]) -> dict[str, Any]:
         "provider": provider_of(uri),
         "image": item.get("image"),
         "favorite": bool(item.get("favorite")),
-        "artist": ", ".join(a.get("name", "") for a in artists if isinstance(a, dict)) or None,
+        "artist": ", ".join(a.get("name", "") for a in artists if isinstance(a, dict))
+        or None,
     }
 
 
@@ -153,7 +173,9 @@ async def async_play_media_item(
     player = manager.player
     if uri is None and is_uri(name):
         uri = name
-    result = PlayResult(ok=False, speaker=manager.name, name=name, media_type=kind, uri=uri, radio=radio)
+    result = PlayResult(
+        ok=False, speaker=manager.name, name=name, media_type=kind, uri=uri, radio=radio
+    )
     result.provider = provider_of(uri)
 
     # Music Assistant: on the speaker itself, or its Music Assistant player.
@@ -162,7 +184,9 @@ async def async_play_media_item(
         result.method = VIA_MUSIC_ASSISTANT
         media_id: str = uri or name
         if uri is None:
-            results = await ma_search(manager.hass, ma_config_entry(manager.hass, manager.ma_link), name, kind)
+            results = await ma_search(
+                manager.hass, ma_config_entry(manager.hass, manager.ma_link), name, kind
+            )
             if results is not None:
                 best = best_match(results, name)
                 if best is None:
@@ -172,12 +196,16 @@ async def async_play_media_item(
                 media_id = result.uri = best["uri"]
                 result.name = best.get("name") or name
                 result.provider = provider_of(media_id)
-        if await player.async_music_assistant(media_id, kind, radio=radio, enqueue=enqueue):
+        if await player.async_music_assistant(
+            media_id, kind, radio=radio, enqueue=enqueue
+        ):
             result.ok = True
             result.message = f"Playing {result.name} on {manager.name}"
         else:
             result.reason = REFUSED_FAILED
-            result.message = f"Music Assistant couldn't play {result.name} on {manager.name}"
+            result.message = (
+                f"Music Assistant couldn't play {result.name} on {manager.name}"
+            )
         return result
 
     result.entity_id = player.entity_id
@@ -195,8 +223,10 @@ async def async_play_media_item(
     if not uri and (source := _favourite(player.source_list, name)):
         result.method = VIA_FAVORITE
         result.ok = await player.async_select_source(source)
-        result.message = f"Playing the favourite {source} on {manager.name}" if result.ok else (
-            f"{manager.name} couldn't play the favourite {source}"
+        result.message = (
+            f"Playing the favourite {source} on {manager.name}"
+            if result.ok
+            else (f"{manager.name} couldn't play the favourite {source}")
         )
         result.reason = None if result.ok else REFUSED_FAILED
         return result
@@ -207,15 +237,24 @@ async def async_play_media_item(
         # Sonos plays share links as "music"; other speakers get the kind.
         content_type = "music" if share or platform == "sonos" else kind
         result.ok = await player.async_play_media(uri, content_type, enqueue=enqueue)
-        result.message = f"Playing {name} on {manager.name}" if result.ok else f"{manager.name} couldn't play {uri}"
+        result.message = (
+            f"Playing {name} on {manager.name}"
+            if result.ok
+            else f"{manager.name} couldn't play {uri}"
+        )
         result.reason = None if result.ok else REFUSED_FAILED
         return result
 
     if platform != "apple_tv" and (item := manager.library_match(kind, name)):
-        content_id, content_type = item["content_id"], item.get("content_type") or "music"
+        content_id, content_type = (
+            item["content_id"],
+            item.get("content_type") or "music",
+        )
         result.method = VIA_HISTORY
         result.uri = content_id
-        result.ok = await player.async_play_media(content_id, content_type, enqueue=enqueue)
+        result.ok = await player.async_play_media(
+            content_id, content_type, enqueue=enqueue
+        )
         result.message = (
             f"Playing {item.get('title')} by {item.get('artist')} on {manager.name}, from what played before"
             if result.ok

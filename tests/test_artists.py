@@ -1,7 +1,5 @@
 """Saved artists and picking the right search result (no Home Assistant needed)."""
 
-import pytest
-
 from media_mgmt_pure.artists import (
     SavedArtist,
     best_match,
@@ -10,6 +8,7 @@ from media_mgmt_pure.artists import (
     load_artists,
     provider_of,
 )
+import pytest
 
 
 def test_provider_from_uri() -> None:
@@ -23,7 +22,10 @@ def test_provider_from_uri() -> None:
 
 
 def test_aliases_are_cleaned() -> None:
-    assert clean_aliases("Mozart, mozart ,  W. A. Mozart\nWolfgang Amadeus Mozart", "Wolfgang Amadeus Mozart") == [
+    assert clean_aliases(
+        "Mozart, mozart ,  W. A. Mozart\nWolfgang Amadeus Mozart",
+        "Wolfgang Amadeus Mozart",
+    ) == [
         "Mozart",
         "W. A. Mozart",
     ]
@@ -32,7 +34,12 @@ def test_aliases_are_cleaned() -> None:
 
 def test_saved_artist_round_trip_and_matching() -> None:
     artist = SavedArtist.from_dict(
-        {"name": "  Wolfgang Amadeus  Mozart ", "uri": "spotify--x://artist/1", "aliases": "Mozart", "volume": 140}
+        {
+            "name": "  Wolfgang Amadeus  Mozart ",
+            "uri": "spotify--x://artist/1",
+            "aliases": "Mozart",
+            "volume": 140,
+        }
     )
     assert artist.name == "Wolfgang Amadeus Mozart"
     assert artist.provider == "spotify"
@@ -48,7 +55,10 @@ def test_saved_artist_round_trip_and_matching() -> None:
 
 
 def test_bad_stored_artists_are_skipped() -> None:
-    assert [a.name for a in load_artists([{"name": "Brahms"}, {"name": ""}, "junk", {"nope": 1}])] == ["Brahms"]
+    assert [
+        a.name
+        for a in load_artists([{"name": "Brahms"}, {"name": ""}, "junk", {"nope": 1}])
+    ] == ["Brahms"]
 
 
 def test_best_match_prefers_exact_name_then_library() -> None:
@@ -60,8 +70,13 @@ def test_best_match_prefers_exact_name_then_library() -> None:
     assert best_match(results, "Johannes Brahms")["uri"] == "library://artist/3"
     # No exact name: Music Assistant's top result that's close.
     assert best_match(results, "Brahms")["uri"] == "spotify://artist/9"
-    assert best_match(results, "Johanes Brahms")["uri"] == "spotify://artist/1"  # misheard
-    assert best_match([{"name": "The Beatles", "uri": "x://1"}], "beatles")["uri"] == "x://1"
+    assert (
+        best_match(results, "Johanes Brahms")["uri"] == "spotify://artist/1"
+    )  # misheard
+    assert (
+        best_match([{"name": "The Beatles", "uri": "x://1"}], "beatles")["uri"]
+        == "x://1"
+    )
     # Nothing close: not found, rather than someone else.
     assert best_match(results, "Raffi") is None
     assert best_match([], "Brahms") is None

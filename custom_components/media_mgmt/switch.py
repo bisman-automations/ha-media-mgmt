@@ -13,7 +13,9 @@ from .entity import MediaMgmtEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: MediaMgmtConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: MediaMgmtConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager = entry.runtime_data
     async_add_entities([MusicFilterSwitch(manager), AdultModeSwitch(manager)])

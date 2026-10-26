@@ -6,7 +6,13 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -33,7 +39,12 @@ from .const import (
 )
 from .manager import MediaManager
 
-PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.BUTTON,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -47,7 +58,9 @@ BLOCK_SCHEMA = vol.All(
     PROFILE_SCHEMA.extend(
         {
             vol.Required("kind"): vol.In(list(BLOCK_KINDS)),
-            vol.Optional("value"): vol.All(cv.string, vol.Strip, vol.Length(min=1, max=200)),
+            vol.Optional("value"): vol.All(
+                cv.string, vol.Strip, vol.Length(min=1, max=200)
+            ),
             vol.Optional("current", default=False): cv.boolean,
         }
     ),
@@ -56,29 +69,43 @@ BLOCK_SCHEMA = vol.All(
 UNBLOCK_SCHEMA = PROFILE_SCHEMA.extend(
     {
         vol.Required("kind"): vol.In(list(BLOCK_KINDS)),
-        vol.Required("value"): vol.All(cv.string, vol.Strip, vol.Length(min=1, max=200)),
+        vol.Required("value"): vol.All(
+            cv.string, vol.Strip, vol.Length(min=1, max=200)
+        ),
     }
 )
 SLEEP_SCHEMA = PROFILE_SCHEMA.extend(
     {
         vol.Required(ATTR_MINUTES): vol.All(vol.Coerce(int), vol.Range(min=1, max=720)),
-        vol.Optional("fade_minutes", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=60)),
+        vol.Optional("fade_minutes", default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=60)
+        ),
     }
 )
 SCHEDULE_SCHEMA = PROFILE_SCHEMA.extend({vol.Required("schedule"): cv.string})
 PLAY_ARTIST_SCHEMA = vol.Schema(
     {
-        vol.Required("artist"): vol.All(cv.string, vol.Strip, vol.Length(min=1, max=500)),
+        vol.Required("artist"): vol.All(
+            cv.string, vol.Strip, vol.Length(min=1, max=500)
+        ),
         vol.Optional(ATTR_PROFILE_ID): cv.string,
         vol.Optional("entity_id"): cv.entity_id,
-        vol.Optional("speaker"): vol.Any(None, vol.All(cv.string, vol.Strip, vol.Length(max=100))),
+        vol.Optional("speaker"): vol.Any(
+            None, vol.All(cv.string, vol.Strip, vol.Length(max=100))
+        ),
         vol.Optional("area_id"): vol.Any(None, cv.string),
-        vol.Optional("media_type", default="artist"): vol.In(["artist", "album", "track", "playlist"]),
-        vol.Optional("uri"): vol.Any(None, vol.All(cv.string, vol.Strip, vol.Length(max=1000))),
+        vol.Optional("media_type", default="artist"): vol.In(
+            ["artist", "album", "track", "playlist"]
+        ),
+        vol.Optional("uri"): vol.Any(
+            None, vol.All(cv.string, vol.Strip, vol.Length(max=1000))
+        ),
         vol.Optional("radio_mode"): cv.boolean,
         vol.Optional("shuffle"): cv.boolean,
         vol.Optional("volume"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
-        vol.Optional("enqueue", default="replace"): vol.In(["play", "replace", "next", "add"]),
+        vol.Optional("enqueue", default="replace"): vol.In(
+            ["play", "replace", "next", "add"]
+        ),
     }
 )
 
@@ -123,7 +150,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -
         await store(hass, entry.entry_id).async_remove()
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -> None:
+async def _async_update_listener(
+    hass: HomeAssistant, entry: MediaMgmtConfigEntry
+) -> None:
     """Settings changed: use them straight away, without reloading the profile."""
     if entry.state is ConfigEntryState.LOADED:
         entry.runtime_data.apply_options(dict(entry.options))
@@ -132,11 +161,15 @@ async def _async_update_listener(hass: HomeAssistant, entry: MediaMgmtConfigEntr
 # ---- linked devices ----------------------------------------------------------------
 
 
-def _link_devices(hass: HomeAssistant, entry: ConfigEntry, manager: MediaManager) -> None:
+def _link_devices(
+    hass: HomeAssistant, entry: ConfigEntry, manager: MediaManager
+) -> None:
     """Show Media Mgmt with the speaker's own device."""
     registry = dr.async_get(hass)
     entity = er.async_get(hass).async_get(manager.entity_id)
-    speaker = registry.async_get(entity.device_id) if entity and entity.device_id else None
+    speaker = (
+        registry.async_get(entity.device_id) if entity and entity.device_id else None
+    )
     if hasattr(registry, "async_get_devices"):
         # Newer Home Assistant: devices from different integrations that share
         # an identifier are listed under each other's Linked devices.
@@ -149,8 +182,14 @@ def _link_devices(hass: HomeAssistant, entry: ConfigEntry, manager: MediaManager
             model="Speaker profile",
             entry_type=dr.DeviceEntryType.SERVICE,
         )
-        shared = set(speaker.identifiers) if speaker and speaker.config_entry_id != entry.entry_id else set()
-        registry.async_update_device(own.id, new_identifiers={own_id, *shared}, via_device_id=None)
+        shared = (
+            set(speaker.identifiers)
+            if speaker and speaker.config_entry_id != entry.entry_id
+            else set()
+        )
+        registry.async_update_device(
+            own.id, new_identifiers={own_id, *shared}, via_device_id=None
+        )
     elif speaker and entry.entry_id not in speaker.config_entries:
         # Older Home Assistant: add the profile to the speaker's device.
         registry.async_update_device(speaker.id, add_config_entry_id=entry.entry_id)
@@ -178,7 +217,9 @@ def _manager(hass: HomeAssistant, call: ServiceCall) -> MediaManager:
 
 
 async def _user_name(hass: HomeAssistant, call: ServiceCall) -> str | None:
-    if call.context.user_id and (user := await hass.auth.async_get_user(call.context.user_id)):
+    if call.context.user_id and (
+        user := await hass.auth.async_get_user(call.context.user_id)
+    ):
         return user.name
     return None
 
@@ -189,7 +230,9 @@ def current_value(manager: MediaManager, kind: str) -> str:
 
     media = manager.player.media
     if not media:
-        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="nothing_playing")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="nothing_playing"
+        )
     value = {
         "track": track_entry(media["title"], media.get("artist")),
         "artist": media.get("artist"),
@@ -199,7 +242,9 @@ def current_value(manager: MediaManager, kind: str) -> str:
     }.get(kind)
     if not value:
         raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="nothing_to_block", translation_placeholders={"kind": kind}
+            translation_domain=DOMAIN,
+            translation_key="nothing_to_block",
+            translation_placeholders={"kind": kind},
         )
     return value
 
@@ -223,18 +268,25 @@ def _register_services(hass: HomeAssistant) -> None:
         await async_ensure_allowed(hass, call.context)
         manager = _manager(hass, call)
         value = call.data.get("value") or current_value(manager, call.data["kind"])
-        manager.update_filter(call.data["kind"], value, add=True, by=await _user_name(hass, call))
+        manager.update_filter(
+            call.data["kind"], value, add=True, by=await _user_name(hass, call)
+        )
 
     async def unblock_media(call: ServiceCall) -> None:
         await async_ensure_allowed(hass, call.context)
         _manager(hass, call).update_filter(
-            call.data["kind"], call.data["value"], add=False, by=await _user_name(hass, call)
+            call.data["kind"],
+            call.data["value"],
+            add=False,
+            by=await _user_name(hass, call),
         )
 
     async def set_sleep_timer(call: ServiceCall) -> None:
         await async_ensure_allowed(hass, call.context)
         _manager(hass, call).set_sleep_timer(
-            call.data[ATTR_MINUTES], call.data["fade_minutes"], by=await _user_name(hass, call)
+            call.data[ATTR_MINUTES],
+            call.data["fade_minutes"],
+            by=await _user_name(hass, call),
         )
 
     async def cancel_sleep_timer(call: ServiceCall) -> None:
@@ -246,7 +298,8 @@ def _register_services(hass: HomeAssistant) -> None:
         manager = _manager(hass, call)
         wanted = call.data["schedule"]
         sched = manager.schedule_by_id(wanted) or next(
-            (s for s in manager.schedules if s.name.casefold() == wanted.casefold()), None
+            (s for s in manager.schedules if s.name.casefold() == wanted.casefold()),
+            None,
         )
         if sched is None:
             raise ServiceValidationError(
@@ -260,7 +313,9 @@ def _register_services(hass: HomeAssistant) -> None:
                 translation_key="schedule_limit_only",
                 translation_placeholders={"schedule": sched.name},
             )
-        await manager.async_start_schedule(sched, by=await _user_name(hass, call), manual=True)
+        await manager.async_start_schedule(
+            sched, by=await _user_name(hass, call), manual=True
+        )
 
     async def play_artist(call: ServiceCall) -> ServiceResponse:
         # Playing doesn't change or lift any rule (blocked music, limits, quiet
@@ -305,5 +360,9 @@ def _register_services(hass: HomeAssistant) -> None:
     register(DOMAIN, SERVICE_CANCEL_SLEEP_TIMER, cancel_sleep_timer, PROFILE_SCHEMA)
     register(DOMAIN, SERVICE_RUN_SCHEDULE, run_schedule, SCHEDULE_SCHEMA)
     register(
-        DOMAIN, SERVICE_PLAY_ARTIST, play_artist, PLAY_ARTIST_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+        DOMAIN,
+        SERVICE_PLAY_ARTIST,
+        play_artist,
+        PLAY_ARTIST_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )

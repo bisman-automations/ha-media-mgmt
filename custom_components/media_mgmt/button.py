@@ -20,7 +20,9 @@ from .saved import async_play_request, get_saved
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: MediaMgmtConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: MediaMgmtConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager = entry.runtime_data
     async_add_entities([BlockButton(manager, "track"), BlockButton(manager, "artist")])
@@ -31,7 +33,11 @@ async def async_setup_entry(
     def _sync() -> None:
         """Add a button for each new saved artist; remove the ones for deleted artists."""
         artists = {a.id: a for a in get_saved(hass).artists}
-        new = [PlayArtistButton(manager, a.id, a.name) for a_id, a in artists.items() if a_id not in buttons]
+        new = [
+            PlayArtistButton(manager, a.id, a.name)
+            for a_id, a in artists.items()
+            if a_id not in buttons
+        ]
         for button in new:
             buttons[button.artist_id] = button
         if new:
@@ -39,7 +45,9 @@ async def async_setup_entry(
         registry = er.async_get(hass)
         for artist_id in [i for i in buttons if i not in artists]:
             button = buttons.pop(artist_id)
-            if entity_id := registry.async_get_entity_id("button", DOMAIN, button.unique_id):
+            if entity_id := registry.async_get_entity_id(
+                "button", DOMAIN, button.unique_id
+            ):
                 registry.async_remove(entity_id)
         for artist_id, button in buttons.items():
             button.rename(artists[artist_id].name)
@@ -55,9 +63,15 @@ class BlockButton(MediaMgmtEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self._ensure_allowed()
-        user = await self.hass.auth.async_get_user(self._context.user_id) if self._context and self._context.user_id else None
+        user = (
+            await self.hass.auth.async_get_user(self._context.user_id)
+            if self._context and self._context.user_id
+            else None
+        )
         value = current_value(self.manager, self._kind)
-        self.manager.update_filter(self._kind, value, add=True, by=user.name if user else None)
+        self.manager.update_filter(
+            self._kind, value, add=True, by=user.name if user else None
+        )
 
 
 class PlayArtistButton(MediaMgmtEntity, ButtonEntity):
@@ -80,12 +94,20 @@ class PlayArtistButton(MediaMgmtEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         # Like pressing play on the speaker: open to everyone, and every rule applies.
-        user = await self.hass.auth.async_get_user(self._context.user_id) if self._context and self._context.user_id else None
+        user = (
+            await self.hass.auth.async_get_user(self._context.user_id)
+            if self._context and self._context.user_id
+            else None
+        )
         result = await async_play_request(
-            self.hass, self.artist_id, profile_id=self.manager.entry.entry_id, by=user.name if user else None
+            self.hass,
+            self.artist_id,
+            profile_id=self.manager.entry.entry_id,
+            by=user.name if user else None,
         )
         if not result.ok:
             raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="play_failed",
+                translation_domain=DOMAIN,
+                translation_key="play_failed",
                 translation_placeholders={"message": result.message},
             )

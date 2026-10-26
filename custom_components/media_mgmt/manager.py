@@ -73,12 +73,7 @@ from .playback import (
 )
 from .player import Player
 from .quiet import QuietWindow, parse_windows
-from .schedules import (
-    PLAY_CONTENT,
-    PLAY_RESUME,
-    PLAY_SOURCE,
-    Schedule,
-)
+from .schedules import PLAY_CONTENT, PLAY_RESUME, PLAY_SOURCE, Schedule
 from .state import (
     MODE_ENFORCED,
     MODES,
@@ -175,7 +170,9 @@ class MediaManager:
         try:
             self.quiet_windows = parse_windows(o.get(CONF_QUIET_WINDOWS, ""))
         except ValueError as err:
-            _LOGGER.error("Media Mgmt %s: ignoring bad quiet windows: %s", self.entry.title, err)
+            _LOGGER.error(
+                "Media Mgmt %s: ignoring bad quiet windows: %s", self.entry.title, err
+            )
             self.quiet_windows = []
         self.announcer = Announcer(
             self.hass,
@@ -224,7 +221,9 @@ class MediaManager:
 
     @property
     def adult_mode_duration(self) -> int:
-        return int(self.options.get(CONF_ADULT_MODE_DURATION, DEFAULT_ADULT_MODE_DURATION))
+        return int(
+            self.options.get(CONF_ADULT_MODE_DURATION, DEFAULT_ADULT_MODE_DURATION)
+        )
 
     @property
     def max_volume(self) -> int:
@@ -261,14 +260,20 @@ class MediaManager:
         self.refresh_ma_link(notify=False)
         self.player.async_start(self._on_player_update)
         self._unsubs.append(
-            self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._on_registry_update)
+            self.hass.bus.async_listen(
+                er.EVENT_ENTITY_REGISTRY_UPDATED, self._on_registry_update
+            )
         )
         self._unsubs.append(
-            self.hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, self._on_registry_update)
+            self.hass.bus.async_listen(
+                dr.EVENT_DEVICE_REGISTRY_UPDATED, self._on_registry_update
+            )
         )
         self._unsubs.append(
             async_track_time_interval(
-                self.hass, self._on_tick, timedelta(seconds=TICK_INTERVAL),
+                self.hass,
+                self._on_tick,
+                timedelta(seconds=TICK_INTERVAL),
                 name=f"media_mgmt tick {self.name}",
             )
         )
@@ -302,13 +307,20 @@ class MediaManager:
     @callback
     def refresh_ma_link(self, *, notify: bool = True) -> None:
         """Find this speaker's Music Assistant player again (settings or registries changed)."""
-        link = resolve_ma_link(self.hass, self.entity_id, self.options.get(CONF_MA_PLAYER))
+        link = resolve_ma_link(
+            self.hass, self.entity_id, self.options.get(CONF_MA_PLAYER)
+        )
         changed = link != self.ma_link
         self.ma_link = link
         twin = link.entity_id if link.method != LINK_SELF else None
         if self.player.set_twin(twin) or changed:
             if link.linked:
-                _LOGGER.debug("Media Mgmt %s: plays through %s (%s)", self.name, link.entity_id, link.method)
+                _LOGGER.debug(
+                    "Media Mgmt %s: plays through %s (%s)",
+                    self.name,
+                    link.entity_id,
+                    link.method,
+                )
             if notify:
                 self.notify()
 
@@ -378,7 +390,11 @@ class MediaManager:
                 midnight = dt_util.start_of_local_day(local_now)
                 local_last = dt_util.as_local(last)
                 if local_last < midnight:
-                    self._credit(int((midnight - local_last).total_seconds()), playing, local_last.hour)
+                    self._credit(
+                        int((midnight - local_last).total_seconds()),
+                        playing,
+                        local_last.hour,
+                    )
                     self._rollover_if_needed(local_now)
                     elapsed = local_now - midnight
                 self._credit(int(elapsed.total_seconds()), playing, local_now.hour)
@@ -422,7 +438,9 @@ class MediaManager:
                     continue
                 # A volume limit holds for its whole time, even if Home Assistant
                 # restarted or it was made partway through.
-                if sched.limit_only or (run.get("started") == occ.key and run.get("stopped") != occ.key):
+                if sched.limit_only or (
+                    run.get("started") == occ.key and run.get("stopped") != occ.key
+                ):
                     playing.append(sched)
                     break
         return playing
@@ -433,7 +451,11 @@ class MediaManager:
 
     def volume_limit_schedule(self, now: datetime | None = None) -> Schedule | None:
         """The playing schedule with the lowest volume limit, if any has one."""
-        limited = [s for s in self._playing_schedules(now or dt_util.now()) if s.volume_limit is not None]
+        limited = [
+            s
+            for s in self._playing_schedules(now or dt_util.now())
+            if s.volume_limit is not None
+        ]
         return min(limited, key=lambda s: s.volume_limit) if limited else None
 
     @property
@@ -462,9 +484,25 @@ class MediaManager:
         if not fire_events:
             return
         d = self.decision
-        if (previous.state, previous.reason, previous.schedule) != (d.state, d.reason, d.schedule):
-            _LOGGER.info("Media Mgmt %s: %s -> %s (%s)", self.name, previous.state, d.state, d.reason)
-            self._log(act.EV_ENFORCEMENT, state=d.state, reason=d.reason, quiet_window=d.quiet_window, schedule=d.schedule)
+        if (previous.state, previous.reason, previous.schedule) != (
+            d.state,
+            d.reason,
+            d.schedule,
+        ):
+            _LOGGER.info(
+                "Media Mgmt %s: %s -> %s (%s)",
+                self.name,
+                previous.state,
+                d.state,
+                d.reason,
+            )
+            self._log(
+                act.EV_ENFORCEMENT,
+                state=d.state,
+                reason=d.reason,
+                quiet_window=d.quiet_window,
+                schedule=d.schedule,
+            )
             self.hass.bus.async_fire(
                 EVENT_ENFORCEMENT_CHANGED,
                 {
@@ -484,7 +522,11 @@ class MediaManager:
                 self.announcer.announce(warning_message(minutes))
             self.hass.bus.async_fire(
                 EVENT_WARNING,
-                {"profile_id": self.entry.entry_id, "speaker": self.name, "remaining_minutes": minutes},
+                {
+                    "profile_id": self.entry.entry_id,
+                    "speaker": self.name,
+                    "remaining_minutes": minutes,
+                },
             )
 
     # ---- enforcement -------------------------------------------------------------
@@ -515,8 +557,12 @@ class MediaManager:
         delay = ACT_DELAY
         if self._stop_attempts:
             delay = self._retry_delay()
-        elif not self._stop_announced and self.announcer and self.announcer.announce(
-            stopping_message(self.decision.reason, self.decision.quiet_window)
+        elif (
+            not self._stop_announced
+            and self.announcer
+            and self.announcer.announce(
+                stopping_message(self.decision.reason, self.decision.quiet_window)
+            )
         ):
             self._stop_announced = True
             delay = ANNOUNCE_GRACE
@@ -525,13 +571,19 @@ class MediaManager:
     @callback
     def _stop_callback(self, _now: datetime) -> None:
         self._unsub_stop = None
-        if not (self.decision.state == STATE_ENFORCING and self._enforcing() and self.player.is_playing):
+        if not (
+            self.decision.state == STATE_ENFORCING
+            and self._enforcing()
+            and self.player.is_playing
+        ):
             return
         now = dt_util.utcnow()
         wait = self._retry_delay() if self._stop_attempts else ACT_COOLDOWN
         if self._last_stop and (now - self._last_stop).total_seconds() < wait:
             self._unsub_stop = async_call_later(
-                self.hass, wait - (now - self._last_stop).total_seconds(), self._stop_callback
+                self.hass,
+                wait - (now - self._last_stop).total_seconds(),
+                self._stop_callback,
             )
             return
         self._last_stop = now
@@ -539,16 +591,22 @@ class MediaManager:
         action = self.player.resolve_action(self.limit_action)
         if self._stop_attempts == 1:
             self._log(act.EV_STOPPED, reason=self.decision.reason, action=action)
-            _LOGGER.info("Media Mgmt %s: stopping music (%s)", self.name, self.decision.reason)
+            _LOGGER.info(
+                "Media Mgmt %s: stopping music (%s)", self.name, self.decision.reason
+            )
         self.hass.async_create_task(self.player.async_do(action))
 
     def _retry_delay(self) -> float:
         """10 s, 20 s, 40 s ... up to 10 min between tries."""
-        return float(min(ACT_COOLDOWN * 2 ** max(0, self._stop_attempts - 1), MAX_ACT_RETRY))
+        return float(
+            min(ACT_COOLDOWN * 2 ** max(0, self._stop_attempts - 1), MAX_ACT_RETRY)
+        )
 
     # Blocked music ----------------------------------------------------------------------
 
-    def blocked_rule(self, media: dict[str, Any] | None = None) -> tuple[str, str] | None:
+    def blocked_rule(
+        self, media: dict[str, Any] | None = None
+    ) -> tuple[str, str] | None:
         """The rule what's playing breaks, if the filter is on."""
         if not self.state.music_filter:
             return None
@@ -579,8 +637,15 @@ class MediaManager:
         self.state.last_blocked_at = now.isoformat()
         self.store.schedule_save()
         self._log(
-            act.EV_BLOCKED, kind=kind, rule=value, title=media.get("title"), artist=media.get("artist"),
-            album=media.get("album"), source=media.get("source"), action=action, acted=acted,
+            act.EV_BLOCKED,
+            kind=kind,
+            rule=value,
+            title=media.get("title"),
+            artist=media.get("artist"),
+            album=media.get("album"),
+            source=media.get("source"),
+            action=action,
+            acted=acted,
         )
         self.hass.bus.async_fire(
             EVENT_MEDIA_BLOCKED,
@@ -598,15 +663,23 @@ class MediaManager:
                 "acted": acted,
             },
         )
-        _LOGGER.info("Media Mgmt %s: blocked %s (%s %s)", self.name, describe(media), kind, value)
+        _LOGGER.info(
+            "Media Mgmt %s: blocked %s (%s %s)", self.name, describe(media), kind, value
+        )
         if acted:
-            self._unsub_filter = async_call_later(self.hass, ACT_DELAY, self._filter_callback)
+            self._unsub_filter = async_call_later(
+                self.hass, ACT_DELAY, self._filter_callback
+            )
 
     @callback
     def _filter_callback(self, _now: datetime) -> None:
         self._unsub_filter = None
         media = self.player.media if self.player.is_playing else None
-        if media is None or media_id(media) != self._filter_key or not self._enforcing():
+        if (
+            media is None
+            or media_id(media) != self._filter_key
+            or not self._enforcing()
+        ):
             return
         if self.blocked_rule(media) is None or not self.decision.filter_active:
             return
@@ -615,7 +688,9 @@ class MediaManager:
         self.hass.async_create_task(self.player.async_do(action))
         if self._filter_tries < MAX_FILTER_TRIES:
             # Check again: some speakers ignore a skip mid-buffer.
-            self._unsub_filter = async_call_later(self.hass, ACT_COOLDOWN, self._filter_callback)
+            self._unsub_filter = async_call_later(
+                self.hass, ACT_COOLDOWN, self._filter_callback
+            )
 
     # Volume cap --------------------------------------------------------------------------
 
@@ -625,20 +700,39 @@ class MediaManager:
         volume = self.player.volume
         if cap >= 100 or volume is None or self._fade:
             return
-        if self.decision.state not in (STATE_OK, STATE_WARNING, STATE_SCHEDULE, STATE_ENFORCING):
+        if self.decision.state not in (
+            STATE_OK,
+            STATE_WARNING,
+            STATE_SCHEDULE,
+            STATE_ENFORCING,
+        ):
             return  # paused or adult mode
         if not self.player.is_on or volume * 100 <= cap + 0.5:
             return
         now = dt_util.utcnow()
-        if self._last_volume_fix and (now - self._last_volume_fix).total_seconds() < (2 * VOLUME_COOLDOWN if not self._enforcing() else VOLUME_COOLDOWN):
+        if self._last_volume_fix and (now - self._last_volume_fix).total_seconds() < (
+            2 * VOLUME_COOLDOWN if not self._enforcing() else VOLUME_COOLDOWN
+        ):
             return
         self._last_volume_fix = now
         acted = self._enforcing()
         if not self._last_volume_log or now - self._last_volume_log > VOLUME_LOG_EVERY:
             self._last_volume_log = now
             limited_by = self.volume_limit_schedule()
-            schedule = limited_by.name if limited_by and limited_by.volume_limit < self.max_volume else None
-            self._log(act.EV_VOLUME, **{"from": round(volume * 100), "to": cap, "acted": acted, "schedule": schedule})
+            schedule = (
+                limited_by.name
+                if limited_by and limited_by.volume_limit < self.max_volume
+                else None
+            )
+            self._log(
+                act.EV_VOLUME,
+                **{
+                    "from": round(volume * 100),
+                    "to": cap,
+                    "acted": acted,
+                    "schedule": schedule,
+                },
+            )
         if acted:
             self.hass.async_create_task(self.player.async_set_volume(cap / 100))
 
@@ -657,14 +751,31 @@ class MediaManager:
             self._finish_fade_and_stop(ACTION_PAUSE, reason="sleep_timer")
             return
         fade = self.state.sleep_fade
-        if fade and now >= until - timedelta(minutes=fade) and not self._fade and self.player.is_playing:
-            self._start_fade(until - timedelta(minutes=fade), until, reason="sleep_timer")
+        if (
+            fade
+            and now >= until - timedelta(minutes=fade)
+            and not self._fade
+            and self.player.is_playing
+        ):
+            self._start_fade(
+                until - timedelta(minutes=fade), until, reason="sleep_timer"
+            )
 
     @callback
-    def set_sleep_timer(self, minutes: int, fade: int = 0, by: str | None = None) -> None:
-        self.state.sleep_until = (dt_util.utcnow() + timedelta(minutes=minutes)).isoformat()
+    def set_sleep_timer(
+        self, minutes: int, fade: int = 0, by: str | None = None
+    ) -> None:
+        self.state.sleep_until = (
+            dt_util.utcnow() + timedelta(minutes=minutes)
+        ).isoformat()
         self.state.sleep_fade = max(0, min(fade, minutes))
-        self._log(act.EV_SLEEP, action="set", minutes=minutes, fade=self.state.sleep_fade or None, by=by)
+        self._log(
+            act.EV_SLEEP,
+            action="set",
+            minutes=minutes,
+            fade=self.state.sleep_fade or None,
+            by=by,
+        )
         self.store.schedule_save()
         self._evaluate()
         self.notify()
@@ -687,11 +798,19 @@ class MediaManager:
         volume = self.player.volume
         if volume is None or not self.player.supports(F.VOLUME_SET):
             return
-        self._fade = {"from": volume, "start": min(begin, dt_util.utcnow()), "until": until, "reason": reason}
+        self._fade = {
+            "from": volume,
+            "start": min(begin, dt_util.utcnow()),
+            "until": until,
+            "reason": reason,
+        }
         self.state.fade_restore = volume
         self.store.schedule_save()
         self._unsub_fade = async_track_time_interval(
-            self.hass, self._fade_step, timedelta(seconds=FADE_STEP), name=f"media_mgmt fade {self.name}"
+            self.hass,
+            self._fade_step,
+            timedelta(seconds=FADE_STEP),
+            name=f"media_mgmt fade {self.name}",
         )
         self._fade_step(dt_util.utcnow())
 
@@ -740,7 +859,9 @@ class MediaManager:
                 self._restore_volume()
 
         if playing:
-            self._log(act.EV_STOPPED, reason=reason, action=self.player.resolve_action(action))
+            self._log(
+                act.EV_STOPPED, reason=reason, action=self.player.resolve_action(action)
+            )
         self.hass.async_create_task(_run())
 
     # ---- schedules ---------------------------------------------------------------
@@ -762,41 +883,71 @@ class MediaManager:
                         self.store.schedule_save()
                         self._schedule_stop(sched)
                     continue
-                if occ.fade_due(now) and run.get("faded") != occ.key and self.player.is_playing and not self._fade:
+                if (
+                    occ.fade_due(now)
+                    and run.get("faded") != occ.key
+                    and self.player.is_playing
+                    and not self._fade
+                ):
                     run["faded"] = occ.key
                     self.store.schedule_save()
-                    self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="fading", minutes=sched.fade_minutes)
-                    self._start_fade(occ.fade_from, occ.stop, reason=f"schedule:{sched.id}")
+                    self._log(
+                        act.EV_SCHEDULE,
+                        id=sched.id,
+                        name=sched.name,
+                        action="fading",
+                        minutes=sched.fade_minutes,
+                    )
+                    self._start_fade(
+                        occ.fade_from, occ.stop, reason=f"schedule:{sched.id}"
+                    )
                 if occ.start_due(now) and run.get("started") != occ.key:
                     run["started"] = occ.key
                     self.store.schedule_save()
                     self.hass.async_create_task(self.async_start_schedule(sched))
 
     @callback
-    def _check_limit_window(self, sched: Schedule, occ, run: dict[str, str], now: datetime) -> None:
+    def _check_limit_window(
+        self, sched: Schedule, occ, run: dict[str, str], now: datetime
+    ) -> None:
         """A volume limit starting or ending: note it, and let the volume cap do the rest."""
         if occ.start_due(now) and run.get("started") != occ.key:
             run["started"] = occ.key
             self.store.schedule_save()
-            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="limit_started", limit=sched.volume_limit)
+            self._log(
+                act.EV_SCHEDULE,
+                id=sched.id,
+                name=sched.name,
+                action="limit_started",
+                limit=sched.volume_limit,
+            )
             self._fire_schedule(sched, "limit_started")
             self._enforce_volume()
         elif occ.stop_due(now) and run.get("stopped") != occ.key:
             run["stopped"] = occ.key
             self.store.schedule_save()
-            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="limit_ended")
+            self._log(
+                act.EV_SCHEDULE, id=sched.id, name=sched.name, action="limit_ended"
+            )
             self._fire_schedule(sched, "limit_ended")
 
     @callback
     def _schedule_stop(self, sched: Schedule) -> None:
         playing = self.player.is_playing
-        self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="stopped" if playing else "stop_idle")
+        self._log(
+            act.EV_SCHEDULE,
+            id=sched.id,
+            name=sched.name,
+            action="stopped" if playing else "stop_idle",
+        )
         self._fire_schedule(sched, "stopped")
         if playing or self.state.fade_restore is not None:
             self._finish_fade_and_stop(sched.stop_action, reason="schedule")
         self._recompute()
 
-    def _fire_schedule(self, sched: Schedule, action: str, detail: str | None = None) -> None:
+    def _fire_schedule(
+        self, sched: Schedule, action: str, detail: str | None = None
+    ) -> None:
         self.hass.bus.async_fire(
             EVENT_SCHEDULE,
             {
@@ -815,7 +966,9 @@ class MediaManager:
     ) -> bool:
         """Start a schedule's music now. Returns True if the speaker took it."""
         if sched.limit_only:
-            raise ValueError(f"{sched.name} only limits the volume; it has no music to play")
+            raise ValueError(
+                f"{sched.name} only limits the volume; it has no music to play"
+            )
         player = self.player
         if manual:
             # Started by hand inside its time: it lifts limits until its stop time.
@@ -830,24 +983,46 @@ class MediaManager:
         if player.is_on is False:
             await player.async_turn_on()
         via_ma = (
-            sched.play_kind in MEDIA_KINDS and not is_uri(sched.play_value) and player.ma_entity_id is not None
+            sched.play_kind in MEDIA_KINDS
+            and not is_uri(sched.play_value)
+            and player.ma_entity_id is not None
         )
         target = player.ma_entity_id if via_ma else player.entity_id
         if sched.volume is not None and player.supports(F.VOLUME_SET, target):
             await player.async_set_volume(
-                min(sched.volume, sched.volume_limit or 100, self.max_volume) / 100, target=target
+                min(sched.volume, sched.volume_limit or 100, self.max_volume) / 100,
+                target=target,
             )
         ok, detail = await self._play(sched)
         if ok:
             if sched.play_kind != PLAY_SOURCE:
                 await player.async_shuffle(sched.shuffle, target=target)
                 await player.async_repeat(sched.repeat, target=target)
-            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="started", detail=detail, by=by)
+            self._log(
+                act.EV_SCHEDULE,
+                id=sched.id,
+                name=sched.name,
+                action="started",
+                detail=detail,
+                by=by,
+            )
             self._fire_schedule(sched, "started", detail)
         else:
-            self._log(act.EV_SCHEDULE, id=sched.id, name=sched.name, action="failed", detail=detail, by=by)
+            self._log(
+                act.EV_SCHEDULE,
+                id=sched.id,
+                name=sched.name,
+                action="failed",
+                detail=detail,
+                by=by,
+            )
             self._fire_schedule(sched, "failed", detail)
-            _LOGGER.warning("Media Mgmt %s: schedule %s couldn't play: %s", self.name, sched.name, detail)
+            _LOGGER.warning(
+                "Media Mgmt %s: schedule %s couldn't play: %s",
+                self.name,
+                sched.name,
+                detail,
+            )
         self._recompute()
         self._evaluate()
         self.notify()
@@ -862,10 +1037,14 @@ class MediaManager:
         if kind == PLAY_SOURCE:
             return await player.async_select_source(value), f"source {value}"
         if kind == PLAY_CONTENT:
-            return await player.async_play_media(value, sched.content_type or "music", enqueue="replace"), value
+            return await player.async_play_media(
+                value, sched.content_type or "music", enqueue="replace"
+            ), value
         # Artist, album, song or playlist. A media ID plays on the speaker as it always has.
         if is_uri(value):
-            return await player.async_play_media(value, sched.content_type or kind, enqueue="replace"), value
+            return await player.async_play_media(
+                value, sched.content_type or kind, enqueue="replace"
+            ), value
         result = await async_play_media_item(self, kind, value)
         if result.ok and result.method == "music_assistant":
             return True, f"{kind} {result.name} with Music Assistant"
@@ -873,7 +1052,12 @@ class MediaManager:
 
     def library_match(self, kind: str, value: str) -> dict[str, Any] | None:
         """The most played song from the library that fits, with an ID the speaker can play."""
-        field = {"artist": "artist", "album": "album", "track": "title", "playlist": "playlist"}.get(kind)
+        field = {
+            "artist": "artist",
+            "album": "album",
+            "track": "title",
+            "playlist": "playlist",
+        }.get(kind)
         wanted = norm(value)
         best = None
         for item in self.activity.library.values():
@@ -887,7 +1071,9 @@ class MediaManager:
 
     # Playing an artist (play_artist action, voice, sidebar app, buttons) ----------------
 
-    def play_refusal(self, name: str | None, kind: str = "artist") -> tuple[str, str] | None:
+    def play_refusal(
+        self, name: str | None, kind: str = "artist"
+    ) -> tuple[str, str] | None:
         """(reason, message) if the rules wouldn't let this play right now, else None.
 
         Adult mode and Paused lift every rule; monitor only never refuses.
@@ -899,14 +1085,21 @@ class MediaManager:
             if decision.reason == REASON_MANUAL:
                 why = "music is stopped for now"
             elif decision.reason == REASON_QUIET:
-                why = f"it's quiet time ({decision.quiet_window})" if decision.quiet_window else "it's quiet time"
+                why = (
+                    f"it's quiet time ({decision.quiet_window})"
+                    if decision.quiet_window
+                    else "it's quiet time"
+                )
             else:
                 why = "today's listening time is used up"
             return REFUSED_LIMIT, f"Music can't play on {self.name}: {why}"
         if name and decision.filter_active:
             field = {"artist": "artist", "album": "album", "track": "title"}.get(kind)
             if field and (rule := self.blocked_rule({field: name})):
-                return REFUSED_BLOCKED, f"{name} is blocked on {self.name} ({rule[0]}: {rule[1]})"
+                return (
+                    REFUSED_BLOCKED,
+                    f"{name} is blocked on {self.name} ({rule[0]}: {rule[1]})",
+                )
         return None
 
     async def async_play_artist(
@@ -923,12 +1116,21 @@ class MediaManager:
     ) -> PlayResult:
         """Play an artist (or album, song, playlist) if the rules allow it."""
         player = self.player
-        base = {"speaker": self.name, "name": name, "media_type": kind, "uri": uri, "radio": radio}
+        base = {
+            "speaker": self.name,
+            "name": name,
+            "media_type": kind,
+            "uri": uri,
+            "radio": radio,
+        }
         if refusal := self.play_refusal(name, kind):
             result = PlayResult(ok=False, reason=refusal[0], message=refusal[1], **base)
         elif player.native_state is None and player.ma_entity_id is None:
             result = PlayResult(
-                ok=False, reason=REFUSED_UNAVAILABLE, message=f"{self.name} isn't available", **base
+                ok=False,
+                reason=REFUSED_UNAVAILABLE,
+                message=f"{self.name} isn't available",
+                **base,
             )
         else:
             if self._fade:
@@ -937,14 +1139,29 @@ class MediaManager:
                 await player.async_turn_on()
             target = player.ma_entity_id or player.entity_id
             if volume is not None and player.supports(F.VOLUME_SET, target):
-                level = min(int(volume), 100 if self.adult_mode_active else self.volume_cap)
+                level = min(
+                    int(volume), 100 if self.adult_mode_active else self.volume_cap
+                )
                 await player.async_set_volume(level / 100, target=target)
-            result = await async_play_media_item(self, kind, name, uri=uri, radio=radio, enqueue=enqueue)
-            if result.ok and shuffle is not None and kind != "track" and result.method != "favorite":
+            result = await async_play_media_item(
+                self, kind, name, uri=uri, radio=radio, enqueue=enqueue
+            )
+            if (
+                result.ok
+                and shuffle is not None
+                and kind != "track"
+                and result.method != "favorite"
+            ):
                 await player.async_shuffle(shuffle, target=result.entity_id)
         self._log(
-            act.EV_PLAY_REQUEST, name=result.name, media_type=kind, ok=result.ok, method=result.method,
-            reason=result.reason, detail=result.message, by=by,
+            act.EV_PLAY_REQUEST,
+            name=result.name,
+            media_type=kind,
+            ok=result.ok,
+            method=result.method,
+            reason=result.reason,
+            detail=result.message,
+            by=by,
         )
         self.hass.bus.async_fire(
             EVENT_PLAY,
@@ -957,7 +1174,9 @@ class MediaManager:
             },
         )
         if not result.ok:
-            _LOGGER.info("Media Mgmt %s: didn't play %s: %s", self.name, name, result.message)
+            _LOGGER.info(
+                "Media Mgmt %s: didn't play %s: %s", self.name, name, result.message
+            )
         self._recompute()
         self._evaluate()
         self.notify()
@@ -970,7 +1189,9 @@ class MediaManager:
         sched = Schedule.from_dict(data)
         if sched.volume is not None:
             sched.volume = min(sched.volume, self.max_volume)
-        existing = next((i for i, s in enumerate(self.schedules) if s.id == sched.id), None)
+        existing = next(
+            (i for i, s in enumerate(self.schedules) if s.id == sched.id), None
+        )
         if existing is None:
             self.schedules.append(sched)
             # Created during its own start time: don't start it until next time.
@@ -992,7 +1213,9 @@ class MediaManager:
     @callback
     def delete_schedule(self, schedule_id: str) -> bool:
         before = len(self.schedules)
-        self.schedule_store.schedules = [s for s in self.schedules if s.id != schedule_id]
+        self.schedule_store.schedules = [
+            s for s in self.schedules if s.id != schedule_id
+        ]
         self.state.schedule_runs.pop(schedule_id, None)
         self.schedule_store.schedule_save()
         self.store.schedule_save()
@@ -1033,7 +1256,9 @@ class MediaManager:
     def set_adult_mode(self, enabled: bool, minutes: int | None = None) -> None:
         if enabled:
             duration = minutes or self.adult_mode_duration
-            self.state.adult_mode_until = (dt_util.utcnow() + timedelta(minutes=duration)).isoformat()
+            self.state.adult_mode_until = (
+                dt_util.utcnow() + timedelta(minutes=duration)
+            ).isoformat()
             self._log(act.EV_ADULT_MODE, on=True, minutes=duration)
         else:
             if self.adult_mode_active:
@@ -1074,21 +1299,32 @@ class MediaManager:
         return self.filter.as_dict()
 
     @callback
-    def update_filter(self, kind: str, value: str, *, add: bool, by: str | None = None) -> bool:
+    def update_filter(
+        self, kind: str, value: str, *, add: bool, by: str | None = None
+    ) -> bool:
         """Add or remove a music filter rule. Saved in the profile's options."""
         if kind not in BLOCK_KINDS or not value.strip():
             raise ValueError(kind)
         rules = self.filter_rules()
-        changed = add_rule(rules, kind, value) if add else remove_rule(rules, kind, value)
+        changed = (
+            add_rule(rules, kind, value) if add else remove_rule(rules, kind, value)
+        )
         if not changed:
             return False
-        self._log(act.EV_RULE, kind=kind, value=" ".join(value.split()), added=add, by=by)
+        self._log(
+            act.EV_RULE, kind=kind, value=" ".join(value.split()), added=add, by=by
+        )
         self.save_filter(rules)
         return True
 
     @callback
-    def save_filter(self, rules: dict[str, list[str]], action: str | None = None) -> None:
-        options = {k: (dict(v) if isinstance(v, dict) else v) for k, v in self.entry.options.items()}
+    def save_filter(
+        self, rules: dict[str, list[str]], action: str | None = None
+    ) -> None:
+        options = {
+            k: (dict(v) if isinstance(v, dict) else v)
+            for k, v in self.entry.options.items()
+        }
         section = options.setdefault(SECTION_FILTER, {})
         for kind, conf in BLOCK_KINDS.items():
             if kind in rules:
@@ -1147,8 +1383,12 @@ class MediaManager:
         self.store.schedule_save()
         self.activity.note_play(dt_util.utcnow(), key, media)
         self._log(
-            act.EV_PLAY, key=key, title=media.get("title"), artist=media.get("artist"),
-            album=media.get("album"), source=media.get("source"),
+            act.EV_PLAY,
+            key=key,
+            title=media.get("title"),
+            artist=media.get("artist"),
+            album=media.get("album"),
+            source=media.get("source"),
         )
 
     @callback

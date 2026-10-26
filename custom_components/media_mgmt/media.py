@@ -15,7 +15,9 @@ PAUSED = "paused"
 SEP = " — "  # between a song and its artist, e.g. "Clair de Lune — Debussy"
 
 # "A, B & C feat. D" -> A, B, C, D
-_ARTIST_SPLIT = re.compile(r"\s*(?:,|&|;|/|\bfeat\.|\bfeat\b|\bft\.|\bft\b|\bfeaturing\b)\s*", re.IGNORECASE)
+_ARTIST_SPLIT = re.compile(
+    r"\s*(?:,|&|;|/|\bfeat\.|\bfeat\b|\bft\.|\bft\b|\bfeaturing\b)\s*", re.IGNORECASE
+)
 # Version suffixes that shouldn't stop a song from matching: "(Remastered 2011)", "- Live"
 _SUFFIX = re.compile(r"\s*(?:\([^)]*\)|\[[^\]]*\]|\s-\s.*)$")
 
@@ -59,9 +61,11 @@ def media_from(state: str | None, attributes: dict[str, Any]) -> dict[str, Any] 
         return None
     media: dict[str, Any] = {
         "title": title,
-        "artist": _clean(attributes.get("media_artist")) or _clean(attributes.get("media_album_artist")),
+        "artist": _clean(attributes.get("media_artist"))
+        or _clean(attributes.get("media_album_artist")),
         "album": _clean(attributes.get("media_album_name")),
-        "source": _clean(attributes.get("app_name")) or _clean(attributes.get("source")),
+        "source": _clean(attributes.get("app_name"))
+        or _clean(attributes.get("source")),
         "playlist": _clean(attributes.get("media_playlist")),
         "content_id": _clean(attributes.get("media_content_id")),
         "content_type": _clean(attributes.get("media_content_type")),
@@ -87,7 +91,12 @@ def media_id(media: dict[str, Any] | None) -> tuple | None:
     """Identity of one play, to tell when the song changes."""
     if not media:
         return None
-    return (media.get("title"), media.get("artist"), media.get("album"), media.get("content_id"))
+    return (
+        media.get("title"),
+        media.get("artist"),
+        media.get("album"),
+        media.get("content_id"),
+    )
 
 
 def describe(media: dict[str, Any] | None) -> str | None:

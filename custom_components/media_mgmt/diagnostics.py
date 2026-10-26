@@ -10,7 +10,9 @@ from homeassistant.core import HomeAssistant
 from . import MediaMgmtConfigEntry
 
 
-async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(
+    hass: HomeAssistant, entry: MediaMgmtConfigEntry
+) -> dict[str, Any]:
     manager = entry.runtime_data
     player_state = hass.states.get(manager.entity_id)
     return {

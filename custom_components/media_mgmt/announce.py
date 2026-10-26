@@ -28,7 +28,11 @@ def stopping_message(reason: str | None, window: str | None = None) -> str:
     if reason == REASON_BUDGET:
         return "Music time is up for today. The music is stopping now."
     if reason == REASON_QUIET:
-        return f"It's {window.lower()} time. The music is stopping now." if window else "It's quiet time. The music is stopping now."
+        return (
+            f"It's {window.lower()} time. The music is stopping now."
+            if window
+            else "It's quiet time. The music is stopping now."
+        )
     if reason == REASON_MANUAL:
         return "A parent stopped the music."
     return "The music is stopping now."
@@ -92,7 +96,11 @@ class Announcer:
             await self.hass.services.async_call(
                 "tts",
                 "speak",
-                {ATTR_ENTITY_ID: self.tts_entity, "media_player_entity_id": self.players, "message": message},
+                {
+                    ATTR_ENTITY_ID: self.tts_entity,
+                    "media_player_entity_id": self.players,
+                    "message": message,
+                },
                 blocking=True,
             )
         except Exception as err:  # noqa: BLE001

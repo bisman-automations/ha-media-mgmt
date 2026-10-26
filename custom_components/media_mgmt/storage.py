@@ -73,7 +73,11 @@ class ProfileState:
 
     @property
     def adult_mode_until_dt(self) -> datetime | None:
-        return datetime.fromisoformat(self.adult_mode_until) if self.adult_mode_until else None
+        return (
+            datetime.fromisoformat(self.adult_mode_until)
+            if self.adult_mode_until
+            else None
+        )
 
     @property
     def sleep_until_dt(self) -> datetime | None:
@@ -82,7 +86,9 @@ class ProfileState:
 
 class ProfileStore:
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}")
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}"
+        )
         self.state = ProfileState()
 
     async def async_load(self) -> ProfileState:
@@ -108,7 +114,9 @@ class ActivityStore:
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         from .activity import ActivityLog
 
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.activity")
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.activity"
+        )
         self.log = ActivityLog()
 
     async def async_load(self):
@@ -131,7 +139,9 @@ class ScheduleStore:
     """A profile's schedules. Kept apart from options so editing them never reloads it."""
 
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.schedules")
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.schedules"
+        )
         self.schedules: list = []
 
     def _data(self) -> dict[str, Any]:
@@ -158,7 +168,9 @@ class ArtistStore:
     """Saved artists, shared by every speaker in the home."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.artists")
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.artists"
+        )
         self.artists: list = []
 
     def _data(self) -> dict[str, Any]:

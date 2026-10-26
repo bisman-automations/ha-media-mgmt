@@ -1,12 +1,14 @@
-import pytest
 from datetime import timedelta
 
-from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
+import pytest
+from pytest_homeassistant_custom_component.common import (
+    async_fire_time_changed,
+    async_mock_service,
+)
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-
-from tests.ha.test_integration import P, SPEAKER, set_speaker, setup
+from tests.ha.test_integration import SPEAKER, P, set_speaker, setup
 
 DOMAIN = "media_mgmt"
 FRIDAY_EVENING = "2026-10-16 19:44:00-07:00"  # the test harness runs in US/Pacific
@@ -18,22 +20,34 @@ async def tick(hass, freezer, seconds=30):
     await hass.async_block_till_done()
 
 
-async def test_bedtime_schedule_plays_through_quiet_window_then_fades_and_stops(hass: HomeAssistant, freezer, calls) -> None:
+async def test_bedtime_schedule_plays_through_quiet_window_then_fades_and_stops(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     freezer.move_to(FRIDAY_EVENING)
     set_speaker(hass, state="idle", title=None, volume=0.6)
     entry = await setup(hass, listening={"quiet_windows": "19:00-07:00 Bedtime"})
     manager = entry.runtime_data
-    sched = manager.save_schedule({
-        "name": "Bedtime music", "days": [0, 1, 2, 3, 4, 5, 6], "start": "19:45", "stop": "19:50",
-        "play_kind": "source", "play_value": "Bedtime favourites", "volume": 25, "fade_minutes": 2,
-    })
+    sched = manager.save_schedule(
+        {
+            "name": "Bedtime music",
+            "days": [0, 1, 2, 3, 4, 5, 6],
+            "start": "19:45",
+            "stop": "19:50",
+            "play_kind": "source",
+            "play_value": "Bedtime favourites",
+            "volume": 25,
+            "fade_minutes": 2,
+        }
+    )
     assert manager.decision.state == "enforcing"  # bedtime quiet window
 
     for _ in range(2):
         await tick(hass, freezer)
     assert calls["select_source"][-1].data["source"] == "Bedtime favourites"
     assert calls["volume_set"][-1].data["volume_level"] == 0.25
-    assert hass.states.get(f"sensor.media_mgmt_{P}_enforcement_state").state == "schedule"
+    assert (
+        hass.states.get(f"sensor.media_mgmt_{P}_enforcement_state").state == "schedule"
+    )
 
     # The speaker starts playing: the quiet window doesn't stop it.
     set_speaker(hass, title="Lullaby", artist="Brahms", volume=0.25)
@@ -61,14 +75,30 @@ async def test_bedtime_schedule_plays_through_quiet_window_then_fades_and_stops(
     assert manager.state.used_seconds <= 60
 
 
-async def test_artist_from_history_without_music_assistant(hass: HomeAssistant, freezer, calls) -> None:
+async def test_artist_from_history_without_music_assistant(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     freezer.move_to(FRIDAY_EVENING)
-    set_speaker(hass, title="Lullaby", artist="Brahms", media_content_id="spotify:track:abc", media_content_type="music")
+    set_speaker(
+        hass,
+        title="Lullaby",
+        artist="Brahms",
+        media_content_id="spotify:track:abc",
+        media_content_type="music",
+    )
     entry = await setup(hass)
     manager = entry.runtime_data
     set_speaker(hass, state="idle", title=None)
     await hass.async_block_till_done()
-    sched = manager.save_schedule({"name": "Bedtime", "days": [4], "start": "19:45", "play_kind": "artist", "play_value": "brahms"})
+    sched = manager.save_schedule(
+        {
+            "name": "Bedtime",
+            "days": [4],
+            "start": "19:45",
+            "play_kind": "artist",
+            "play_value": "brahms",
+        }
+    )
     for _ in range(2):
         await tick(hass, freezer)
     assert calls["play_media"][-1].data["media_content_id"] == "spotify:track:abc"
@@ -79,24 +109,56 @@ async def test_artist_from_history_without_music_assistant(hass: HomeAssistant, 
     assert manager.state.schedule_runs[sched.id]["started"] == "2026-10-16"
 
 
-async def test_artist_with_music_assistant(hass: HomeAssistant, freezer, calls, entity_registry: er.EntityRegistry) -> None:
+async def test_artist_with_music_assistant(
+    hass: HomeAssistant, freezer, calls, entity_registry: er.EntityRegistry
+) -> None:
     freezer.move_to(FRIDAY_EVENING)
-    entity_registry.async_get_or_create("media_player", "music_assistant", "kids", suggested_object_id="kids_room")
+    entity_registry.async_get_or_create(
+        "media_player", "music_assistant", "kids", suggested_object_id="kids_room"
+    )
     ma = async_mock_service(hass, "music_assistant", "play_media")
     set_speaker(hass, state="idle", title=None)
     entry = await setup(hass)
-    entry.runtime_data.save_schedule({"name": "Bedtime", "days": [4], "start": "20:00", "play_kind": "artist", "play_value": "Brahms"})
-    await hass.services.async_call(DOMAIN, "run_schedule", {"profile_id": entry.entry_id, "schedule": "bedtime"}, blocking=True)
-    assert ma[-1].data == {"entity_id": SPEAKER, "media_id": "Brahms", "media_type": "artist", "enqueue": "replace"}
+    entry.runtime_data.save_schedule(
+        {
+            "name": "Bedtime",
+            "days": [4],
+            "start": "20:00",
+            "play_kind": "artist",
+            "play_value": "Brahms",
+        }
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "run_schedule",
+        {"profile_id": entry.entry_id, "schedule": "bedtime"},
+        blocking=True,
+    )
+    assert ma[-1].data == {
+        "entity_id": SPEAKER,
+        "media_id": "Brahms",
+        "media_type": "artist",
+        "enqueue": "replace",
+    }
 
 
-async def test_unknown_artist_fails_cleanly(hass: HomeAssistant, freezer, calls) -> None:
+async def test_unknown_artist_fails_cleanly(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     freezer.move_to(FRIDAY_EVENING)
     set_speaker(hass, state="idle", title=None)
     entry = await setup(hass)
     events = []
     hass.bus.async_listen("media_mgmt_schedule", events.append)
-    sched = entry.runtime_data.save_schedule({"name": "Bedtime", "days": [4], "start": "20:00", "play_kind": "artist", "play_value": "Nobody"})
+    sched = entry.runtime_data.save_schedule(
+        {
+            "name": "Bedtime",
+            "days": [4],
+            "start": "20:00",
+            "play_kind": "artist",
+            "play_value": "Nobody",
+        }
+    )
     ok = await entry.runtime_data.async_start_schedule(sched)
     await hass.async_block_till_done()
     assert ok is False
@@ -104,26 +166,39 @@ async def test_unknown_artist_fails_cleanly(hass: HomeAssistant, freezer, calls)
     assert calls["play_media"] == []
 
 
-async def test_stop_only_schedule_is_a_nightly_sleep_timer(hass: HomeAssistant, freezer, calls) -> None:
+async def test_stop_only_schedule_is_a_nightly_sleep_timer(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     freezer.move_to("2026-10-16 20:29:00-07:00")
     set_speaker(hass)
     entry = await setup(hass)
-    entry.runtime_data.save_schedule({"name": "Lights out", "days": [4], "stop": "20:30", "stop_action": "stop"})
+    entry.runtime_data.save_schedule(
+        {"name": "Lights out", "days": [4], "stop": "20:30", "stop_action": "stop"}
+    )
     for _ in range(3):
         await tick(hass, freezer)
     assert len(calls["media_stop"]) == 1
 
 
-async def test_schedule_repeats_every_night(hass: HomeAssistant, freezer, calls) -> None:
+async def test_schedule_repeats_every_night(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     """Bedtime music starts and stops again the next night, on its own."""
     freezer.move_to(FRIDAY_EVENING)  # 19:44
     set_speaker(hass, state="idle", title=None, volume=0.5)
     entry = await setup(hass)
     manager = entry.runtime_data
-    sched = manager.save_schedule({
-        "name": "Bedtime music", "days": [0, 1, 2, 3, 4, 5, 6], "start": "19:45", "stop": "20:15",
-        "play_kind": "source", "play_value": "Bedtime favourites", "volume": 20,
-    })
+    sched = manager.save_schedule(
+        {
+            "name": "Bedtime music",
+            "days": [0, 1, 2, 3, 4, 5, 6],
+            "start": "19:45",
+            "stop": "20:15",
+            "play_kind": "source",
+            "play_value": "Bedtime favourites",
+            "volume": 20,
+        }
+    )
     for night, day in ((1, "2026-10-16"), (2, "2026-10-17")):
         if night == 2:
             freezer.move_to("2026-10-17 19:44:00-07:00")
@@ -142,16 +217,26 @@ async def test_schedule_repeats_every_night(hass: HomeAssistant, freezer, calls)
         await tick(hass, freezer)
 
 
-async def test_schedule_limits_the_volume_while_it_plays(hass: HomeAssistant, freezer, calls) -> None:
+async def test_schedule_limits_the_volume_while_it_plays(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     """Bedtime music can't be turned up past its limit, until the schedule stops."""
     freezer.move_to(FRIDAY_EVENING)  # 19:44
     set_speaker(hass, state="idle", title=None, volume=0.2)
     entry = await setup(hass)
     manager = entry.runtime_data
-    manager.save_schedule({
-        "name": "Bedtime music", "days": [4], "start": "19:45", "stop": "19:55",
-        "play_kind": "source", "play_value": "Bedtime favourites", "volume": 50, "volume_limit": 30,
-    })
+    manager.save_schedule(
+        {
+            "name": "Bedtime music",
+            "days": [4],
+            "start": "19:45",
+            "stop": "19:55",
+            "play_kind": "source",
+            "play_value": "Bedtime favourites",
+            "volume": 50,
+            "volume_limit": 30,
+        }
+    )
     for _ in range(2):
         await tick(hass, freezer)
     # The starting volume is held to the limit.
@@ -167,7 +252,10 @@ async def test_schedule_limits_the_volume_while_it_plays(hass: HomeAssistant, fr
     from custom_components.media_mgmt.websocket import profile_summary
 
     profile = profile_summary(manager)
-    assert profile["volume_cap"] == 30 and profile["volume_limit_schedule"] == "Bedtime music"
+    assert (
+        profile["volume_cap"] == 30
+        and profile["volume_limit_schedule"] == "Bedtime music"
+    )
     assert profile["max_volume"] == 100
 
     # After it stops, the usual cap (none) is back.
@@ -180,7 +268,9 @@ async def test_schedule_limits_the_volume_while_it_plays(hass: HomeAssistant, fr
     assert len(calls["volume_set"]) == count
 
 
-async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, calls) -> None:
+async def test_volume_limit_schedule_only_limits(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     """An early-morning limit plays nothing and stops nothing; it only holds the volume down."""
     freezer.move_to("2026-10-16 05:59:00-07:00")
     set_speaker(hass, volume=0.6)  # already playing
@@ -188,10 +278,16 @@ async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, c
     manager = entry.runtime_data
     events = []
     hass.bus.async_listen("media_mgmt_schedule", events.append)
-    sched = manager.save_schedule({
-        "name": "Early morning", "days": [4], "start": "06:00", "stop": "08:00",
-        "play_kind": "none", "volume_limit": 20,
-    })
+    sched = manager.save_schedule(
+        {
+            "name": "Early morning",
+            "days": [4],
+            "start": "06:00",
+            "stop": "08:00",
+            "play_kind": "none",
+            "volume_limit": 20,
+        }
+    )
     assert sched.limit_only and not sched.lift_limits and sched.volume is None
     await tick(hass, freezer)
     assert calls["volume_set"] == []  # not yet
@@ -204,7 +300,14 @@ async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, c
     await hass.async_block_till_done()
     assert calls["volume_set"][-1].data["volume_level"] == 0.2
     # Nothing was played, and the music wasn't stopped.
-    for service in ("play_media", "select_source", "media_play", "media_pause", "media_stop", "turn_off"):
+    for service in (
+        "play_media",
+        "select_source",
+        "media_play",
+        "media_pause",
+        "media_stop",
+        "turn_off",
+    ):
         assert calls[service] == [], service
     assert manager.decision.state == "ok"
 
@@ -212,7 +315,12 @@ async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, c
     from homeassistant.exceptions import ServiceValidationError
 
     with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(DOMAIN, "run_schedule", {"profile_id": entry.entry_id, "schedule": "Early morning"}, blocking=True)
+        await hass.services.async_call(
+            DOMAIN,
+            "run_schedule",
+            {"profile_id": entry.entry_id, "schedule": "Early morning"},
+            blocking=True,
+        )
 
     # 08:00: the limit ends, the music keeps playing, and it can go up again.
     freezer.move_to("2026-10-16 08:00:05-07:00")
@@ -225,13 +333,22 @@ async def test_volume_limit_schedule_only_limits(hass: HomeAssistant, freezer, c
     assert len(calls["volume_set"]) == count
 
 
-async def test_volume_limit_applies_when_made_partway_through(hass: HomeAssistant, freezer, calls) -> None:
+async def test_volume_limit_applies_when_made_partway_through(
+    hass: HomeAssistant, freezer, calls
+) -> None:
     freezer.move_to("2026-10-16 06:30:00-07:00")
     set_speaker(hass, volume=0.7)
     entry = await setup(hass)
-    entry.runtime_data.save_schedule({
-        "name": "Early morning", "days": [4], "start": "06:00", "stop": "08:00", "play_kind": "none", "volume_limit": 25,
-    })
+    entry.runtime_data.save_schedule(
+        {
+            "name": "Early morning",
+            "days": [4],
+            "start": "06:00",
+            "stop": "08:00",
+            "play_kind": "none",
+            "volume_limit": 25,
+        }
+    )
     await tick(hass, freezer)
     assert entry.runtime_data.volume_cap == 25
     assert calls["volume_set"][-1].data["volume_level"] == 0.25

@@ -71,7 +71,10 @@ SETTINGS: dict[str, tuple[str, Any]] = {
     CONF_DAILY_BUDGET: (SECTION_LISTENING, vol.All(int, vol.Range(min=0, max=1440))),
     CONF_WARN_MINUTES: (SECTION_LISTENING, vol.All(int, vol.Range(min=0, max=60))),
     CONF_QUIET_WINDOWS: (SECTION_LISTENING, str),
-    CONF_ADULT_MODE_DURATION: (SECTION_LISTENING, vol.All(int, vol.Range(min=5, max=720))),
+    CONF_ADULT_MODE_DURATION: (
+        SECTION_LISTENING,
+        vol.All(int, vol.Range(min=5, max=720)),
+    ),
     CONF_LIMIT_ACTION: (SECTION_LISTENING, vol.In(LIMIT_ACTIONS)),
     CONF_FILTER_ACTION: (SECTION_FILTER, vol.In(FILTER_ACTIONS)),
     CONF_MAX_VOLUME: (SECTION_VOLUME, vol.All(int, vol.Range(min=5, max=100))),
@@ -130,15 +133,25 @@ def require_access(func):
 
 def _managers(hass: HomeAssistant) -> list[MediaManager]:
     return sorted(
-        (e.runtime_data for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED),
+        (
+            e.runtime_data
+            for e in hass.config_entries.async_entries(DOMAIN)
+            if e.state is ConfigEntryState.LOADED
+        ),
         key=lambda m: m.name.casefold(),
     )
 
 
 def _manager(hass: HomeAssistant, connection, msg) -> MediaManager | None:
     entry = hass.config_entries.async_get_entry(msg["entry_id"])
-    if entry is None or entry.domain != DOMAIN or entry.state is not ConfigEntryState.LOADED:
-        connection.send_error(msg["id"], "not_found", "Media Mgmt profile not found or not loaded")
+    if (
+        entry is None
+        or entry.domain != DOMAIN
+        or entry.state is not ConfigEntryState.LOADED
+    ):
+        connection.send_error(
+            msg["id"], "not_found", "Media Mgmt profile not found or not loaded"
+        )
         return None
     return entry.runtime_data
 
@@ -148,7 +161,10 @@ def _by(connection) -> str | None:
 
 
 def _ranked(values: dict[str, int], limit: int = 8) -> list[dict[str, Any]]:
-    return [{"name": k, "seconds": v} for k, v in sorted(values.items(), key=lambda kv: kv[1], reverse=True)[:limit]]
+    return [
+        {"name": k, "seconds": v}
+        for k, v in sorted(values.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    ]
 
 
 def schedule_summary(manager: MediaManager) -> list[dict[str, Any]]:
@@ -157,11 +173,13 @@ def schedule_summary(manager: MediaManager) -> list[dict[str, Any]]:
     result = []
     for sched in manager.schedules:
         nxt = sched.next_run(now)
-        result.append({
-            **sched.as_dict(),
-            "next_run": nxt.isoformat() if nxt else None,
-            "active": active == sched.name,
-        })
+        result.append(
+            {
+                **sched.as_dict(),
+                "next_run": nxt.isoformat() if nxt else None,
+                "active": active == sched.name,
+            }
+        )
     return result
 
 
@@ -216,7 +234,9 @@ def profile_summary(manager: MediaManager) -> dict[str, Any]:
         "max_volume": manager.max_volume,
         # The cap right now: lower while a playing schedule limits the volume.
         "volume_cap": manager.volume_cap,
-        "volume_limit_schedule": (sched.name if (sched := manager.volume_limit_schedule()) else None),
+        "volume_limit_schedule": (
+            sched.name if (sched := manager.volume_limit_schedule()) else None
+        ),
         "blocked_count": s.blocked_count,
         "last_blocked": s.last_blocked,
         "last_blocked_at": s.last_blocked_at,
@@ -230,14 +250,18 @@ def profile_summary(manager: MediaManager) -> dict[str, Any]:
         "schedules": schedule_summary(manager),
         "entities": [
             {"entity_id": e.entity_id, "key": e.translation_key or e.domain}
-            for e in er.async_entries_for_config_entry(er.async_get(manager.hass), manager.entry.entry_id)
+            for e in er.async_entries_for_config_entry(
+                er.async_get(manager.hass), manager.entry.entry_id
+            )
             if not e.disabled
         ],
     }
 
 
 def _local_day_bounds(day: date) -> tuple[datetime, datetime]:
-    return dt_util.start_of_local_day(day), dt_util.start_of_local_day(day + timedelta(days=1))
+    return dt_util.start_of_local_day(day), dt_util.start_of_local_day(
+        day + timedelta(days=1)
+    )
 
 
 def _is_blocked(manager: MediaManager, item: dict[str, Any]) -> dict[str, str] | None:
@@ -254,12 +278,19 @@ def _is_blocked(manager: MediaManager, item: dict[str, Any]) -> dict[str, str] |
 def ws_profiles(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(
         msg["id"],
-        {"profiles": [profile_summary(m) for m in _managers(hass)], "now": dt_util.utcnow().isoformat()},
+        {
+            "profiles": [profile_summary(m) for m in _managers(hass)],
+            "now": dt_util.utcnow().isoformat(),
+        },
     )
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/activity", vol.Required("entry_id"): str, vol.Optional("date"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/activity",
+        vol.Required("entry_id"): str,
+        vol.Optional("date"): str,
+    }
 )
 @require_access
 @callback
@@ -267,7 +298,9 @@ def ws_activity(hass: HomeAssistant, connection, msg) -> None:
     if (manager := _manager(hass, connection, msg)) is None:
         return
     try:
-        day = date.fromisoformat(msg["date"]) if msg.get("date") else dt_util.now().date()
+        day = (
+            date.fromisoformat(msg["date"]) if msg.get("date") else dt_util.now().date()
+        )
     except ValueError:
         connection.send_error(msg["id"], "invalid_format", "date must be YYYY-MM-DD")
         return
@@ -308,13 +341,19 @@ def ws_analytics(hass: HomeAssistant, connection, msg) -> None:
     else:
         managers = _managers(hass)
     per_speaker = [(m, m.activity.daily_series(today, msg["days"])) for m in managers]
-    series = per_speaker[0][1] if len(per_speaker) == 1 else merge_series([s for _, s in per_speaker])
+    series = (
+        per_speaker[0][1]
+        if len(per_speaker) == 1
+        else merge_series([s for _, s in per_speaker])
+    )
     summary = summarize(series)
     if len(managers) == 1:
         for item in summary["top_tracks"]:
             item["blocked"] = _is_blocked(managers[0], _track_item(item["key"]))
         for item in summary["top_artists"]:
-            item["blocked"] = _is_blocked(managers[0], {"title": "", "artist": item["artist"]})
+            item["blocked"] = _is_blocked(
+                managers[0], {"title": "", "artist": item["artist"]}
+            )
     connection.send_result(
         msg["id"],
         {
@@ -323,7 +362,13 @@ def ws_analytics(hass: HomeAssistant, connection, msg) -> None:
             "range": msg["days"],
             "summary": summary,
             "speakers": [
-                {"entry_id": m.entry.entry_id, "name": m.name, "seconds": sum(d["used_seconds"] + d.get("schedule_seconds", 0) for d in s)}
+                {
+                    "entry_id": m.entry.entry_id,
+                    "name": m.name,
+                    "seconds": sum(
+                        d["used_seconds"] + d.get("schedule_seconds", 0) for d in s
+                    ),
+                }
                 for m, s in per_speaker
             ],
         },
@@ -355,7 +400,9 @@ def ws_history(hass: HomeAssistant, connection, msg) -> None:
     if msg["view"] == "artists":
         items = log.artists(msg.get("query"), msg["limit"])
         for item in items:
-            item["blocked"] = _is_blocked(manager, {"title": "", "artist": item["artist"]})
+            item["blocked"] = _is_blocked(
+                manager, {"title": "", "artist": item["artist"]}
+            )
     else:
         items = log.history(msg.get("query"), msg["limit"], msg["sort"])
         for item in items:
@@ -363,7 +410,9 @@ def ws_history(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"items": items, "total": len(log.library)})
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/settings/get", vol.Required("entry_id"): str})
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/settings/get", vol.Required("entry_id"): str}
+)
 @require_access
 @callback
 def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
@@ -372,7 +421,10 @@ def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
     o = manager.options
     tts = sorted(s.entity_id for s in hass.states.async_all("tts"))
     speakers = sorted(
-        ({"entity_id": s.entity_id, "name": s.name} for s in hass.states.async_all("media_player")),
+        (
+            {"entity_id": s.entity_id, "name": s.name}
+            for s in hass.states.async_all("media_player")
+        ),
         key=lambda x: x["name"].casefold(),
     )
     connection.send_result(
@@ -406,13 +458,20 @@ def _ma_players(hass: HomeAssistant) -> list[dict[str, Any]]:
     result = []
     for entry in ma_entities(hass):
         state = hass.states.get(entry.entity_id)
-        result.append({"entity_id": entry.entity_id, "name": state.name if state else entry.entity_id})
+        result.append(
+            {
+                "entity_id": entry.entity_id,
+                "name": state.name if state else entry.entity_id,
+            }
+        )
     return sorted(result, key=lambda x: x["name"].casefold())
 
 
 def _save_options(manager: MediaManager, changes: dict[str, dict[str, Any]]) -> None:
     entry = manager.entry
-    options = {k: (dict(v) if isinstance(v, dict) else v) for k, v in entry.options.items()}
+    options = {
+        k: (dict(v) if isinstance(v, dict) else v) for k, v in entry.options.items()
+    }
     for section, values in changes.items():
         options.setdefault(section, {}).update(values)
     # The update listener applies them straight away, without a reload.
@@ -440,7 +499,9 @@ def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             try:
                 value = ", ".join(w.format() for w in parse_windows(value))
             except ValueError as err:
-                connection.send_error(msg["id"], "invalid_format", f"Quiet windows: {err}")
+                connection.send_error(
+                    msg["id"], "invalid_format", f"Quiet windows: {err}"
+                )
                 return
         if key == CONF_ANNOUNCE_TTS:
             value = value or None
@@ -448,13 +509,26 @@ def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             value = value or None
             entity = er.async_get(hass).async_get(value) if value else None
             if value and (entity is None or entity.platform != "music_assistant"):
-                connection.send_error(msg["id"], "invalid_format", f"{value} isn't a Music Assistant player")
+                connection.send_error(
+                    msg["id"],
+                    "invalid_format",
+                    f"{value} isn't a Music Assistant player",
+                )
                 return
         changes.setdefault(section, {})[key] = value
-    announce = {**{k: manager.options.get(k) for k in (CONF_ANNOUNCE_TTS, CONF_ANNOUNCE_ON_PLAYER, CONF_ANNOUNCE_PLAYERS)},
-                **changes.get(SECTION_ANNOUNCE, {})}
-    if (announce.get(CONF_ANNOUNCE_ON_PLAYER) or announce.get(CONF_ANNOUNCE_PLAYERS)) and not announce.get(CONF_ANNOUNCE_TTS):
-        connection.send_error(msg["id"], "invalid_format", "Pick a voice to say warnings with.")
+    announce = {
+        **{
+            k: manager.options.get(k)
+            for k in (CONF_ANNOUNCE_TTS, CONF_ANNOUNCE_ON_PLAYER, CONF_ANNOUNCE_PLAYERS)
+        },
+        **changes.get(SECTION_ANNOUNCE, {}),
+    }
+    if (
+        announce.get(CONF_ANNOUNCE_ON_PLAYER) or announce.get(CONF_ANNOUNCE_PLAYERS)
+    ) and not announce.get(CONF_ANNOUNCE_TTS):
+        connection.send_error(
+            msg["id"], "invalid_format", "Pick a voice to say warnings with."
+        )
         return
     _save_options(manager, changes)
     connection.send_result(msg["id"], {"saved": changes})
@@ -475,8 +549,12 @@ def ws_filter_update(hass: HomeAssistant, connection, msg) -> None:
     """Block or unblock one song, artist, album, app or word."""
     if (manager := _manager(hass, connection, msg)) is None:
         return
-    changed = manager.update_filter(msg["kind"], msg["value"], add=msg["add"], by=_by(connection))
-    connection.send_result(msg["id"], {"changed": changed, "filter": manager.filter_rules()})
+    changed = manager.update_filter(
+        msg["kind"], msg["value"], add=msg["add"], by=_by(connection)
+    )
+    connection.send_result(
+        msg["id"], {"changed": changed, "filter": manager.filter_rules()}
+    )
 
 
 @websocket_api.websocket_command(
@@ -511,9 +589,13 @@ SCHEDULE_FIELDS = vol.Schema(
         vol.Optional("shuffle", default=True): bool,
         vol.Optional("repeat", default="all"): vol.In(["off", "all", "one"]),
         vol.Optional("volume"): vol.Any(None, vol.All(int, vol.Range(min=0, max=100))),
-        vol.Optional("volume_limit"): vol.Any(None, vol.All(int, vol.Range(min=5, max=100))),
+        vol.Optional("volume_limit"): vol.Any(
+            None, vol.All(int, vol.Range(min=5, max=100))
+        ),
         vol.Optional("fade_minutes", default=0): vol.All(int, vol.Range(min=0, max=60)),
-        vol.Optional("stop_action", default="pause"): vol.In(["pause", "stop", "turn_off"]),
+        vol.Optional("stop_action", default="pause"): vol.In(
+            ["pause", "stop", "turn_off"]
+        ),
         vol.Optional("lift_limits", default=True): bool,
     },
     extra=vol.REMOVE_EXTRA,
@@ -533,15 +615,23 @@ def ws_schedule_save(hass: HomeAssistant, connection, msg) -> None:
     if (manager := _manager(hass, connection, msg)) is None:
         return
     try:
-        sched = manager.save_schedule(SCHEDULE_FIELDS(msg["schedule"]), by=_by(connection))
+        sched = manager.save_schedule(
+            SCHEDULE_FIELDS(msg["schedule"]), by=_by(connection)
+        )
     except (vol.Invalid, ValueError) as err:
         connection.send_error(msg["id"], "invalid_format", str(err).capitalize())
         return
-    connection.send_result(msg["id"], {"schedule": sched.as_dict(), "schedules": schedule_summary(manager)})
+    connection.send_result(
+        msg["id"], {"schedule": sched.as_dict(), "schedules": schedule_summary(manager)}
+    )
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/schedule/delete", vol.Required("entry_id"): str, vol.Required("schedule_id"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/schedule/delete",
+        vol.Required("entry_id"): str,
+        vol.Required("schedule_id"): str,
+    }
 )
 @require_access
 @callback
@@ -553,7 +643,11 @@ def ws_schedule_delete(hass: HomeAssistant, connection, msg) -> None:
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/schedule/run", vol.Required("entry_id"): str, vol.Required("schedule_id"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/schedule/run",
+        vol.Required("entry_id"): str,
+        vol.Required("schedule_id"): str,
+    }
 )
 @require_access
 @websocket_api.async_response
@@ -565,10 +659,16 @@ async def ws_schedule_run(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Schedule not found")
         return
     if sched.limit_only:
-        connection.send_error(msg["id"], "not_supported", f"{sched.name} only limits the volume, so there's nothing to play")
+        connection.send_error(
+            msg["id"],
+            "not_supported",
+            f"{sched.name} only limits the volume, so there's nothing to play",
+        )
         return
     ok = await manager.async_start_schedule(sched, by=_by(connection), manual=True)
-    last = next((e for e in reversed(manager.activity.events) if e["type"] == "schedule"), {})
+    last = next(
+        (e for e in reversed(manager.activity.events) if e["type"] == "schedule"), {}
+    )
     connection.send_result(msg["id"], {"ok": ok, "detail": last.get("detail")})
 
 
@@ -607,11 +707,15 @@ def ws_action(hass: HomeAssistant, connection, msg) -> None:
         elif action == "set_sleep_timer":
             if msg["minutes"] < 1:
                 raise KeyError("minutes")
-            manager.set_sleep_timer(msg["minutes"], msg.get("fade_minutes", 0), by=_by(connection))
+            manager.set_sleep_timer(
+                msg["minutes"], msg.get("fade_minutes", 0), by=_by(connection)
+            )
         elif action == "cancel_sleep_timer":
             manager.cancel_sleep_timer(by=_by(connection))
     except KeyError as err:
-        connection.send_error(msg["id"], "invalid_format", f"{action} needs {err.args[0]}")
+        connection.send_error(
+            msg["id"], "invalid_format", f"{action} needs {err.args[0]}"
+        )
         return
     connection.send_result(msg["id"], {"profile": profile_summary(manager)})
 
@@ -635,9 +739,18 @@ def ws_access_me(hass: HomeAssistant, connection, msg) -> None:
 
 
 async def _people(hass: HomeAssistant) -> list[dict[str, Any]]:
-    users = [u for u in await hass.auth.async_get_users() if not u.system_generated and u.is_active]
+    users = [
+        u
+        for u in await hass.auth.async_get_users()
+        if not u.system_generated and u.is_active
+    ]
     return [
-        {"id": u.id, "name": u.name or u.id, "is_admin": u.is_admin, "is_owner": u.is_owner}
+        {
+            "id": u.id,
+            "name": u.name or u.id,
+            "is_admin": u.is_admin,
+            "is_owner": u.is_owner,
+        }
         for u in sorted(users, key=lambda u: (u.name or "").casefold())
     ]
 
@@ -646,10 +759,15 @@ async def _people(hass: HomeAssistant) -> list[dict[str, Any]]:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_access_get(hass: HomeAssistant, connection, msg) -> None:
-    connection.send_result(msg["id"], {"user_ids": list(get_access(hass).user_ids), "people": await _people(hass)})
+    connection.send_result(
+        msg["id"],
+        {"user_ids": list(get_access(hass).user_ids), "people": await _people(hass)},
+    )
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/access/set", vol.Required("user_ids"): [str]})
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/access/set", vol.Required("user_ids"): [str]}
+)
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_access_set(hass: HomeAssistant, connection, msg) -> None:
@@ -658,17 +776,23 @@ async def ws_access_set(hass: HomeAssistant, connection, msg) -> None:
     access = get_access(hass)
     await access.async_set(msg["user_ids"])
     await async_register_panel(hass, update=True)
-    connection.send_result(msg["id"], {"user_ids": list(access.user_ids), "people": await _people(hass)})
+    connection.send_result(
+        msg["id"], {"user_ids": list(access.user_ids), "people": await _people(hass)}
+    )
 
 
 # ---- speakers (admin only, like Home Assistant's own integration settings) ----------
 
 
 def _managed_players(hass: HomeAssistant) -> set[str]:
-    return {e.data.get("media_player") for e in hass.config_entries.async_entries(DOMAIN)}
+    return {
+        e.data.get("media_player") for e in hass.config_entries.async_entries(DOMAIN)
+    }
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/speakers/candidates"})
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/speakers/candidates"}
+)
 @websocket_api.require_admin
 @callback
 def ws_speakers_candidates(hass: HomeAssistant, connection, msg) -> None:
@@ -712,15 +836,25 @@ async def ws_speakers_add(hass: HomeAssistant, connection, msg) -> None:
     result = await flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await flow.async_configure(result["flow_id"], {"media_player": entity_id})
     if result["type"] is FlowResultType.ABORT:
-        connection.send_error(msg["id"], "already_configured", "Media Mgmt already manages this speaker")
+        connection.send_error(
+            msg["id"], "already_configured", "Media Mgmt already manages this speaker"
+        )
         return
     # The settings step with every section left at its defaults.
-    sections = {SECTION_LISTENING: {}, SECTION_FILTER: {}, SECTION_VOLUME: {}, SECTION_ANNOUNCE: {}, SECTION_PLAYBACK: {}}
+    sections = {
+        SECTION_LISTENING: {},
+        SECTION_FILTER: {},
+        SECTION_VOLUME: {},
+        SECTION_ANNOUNCE: {},
+        SECTION_PLAYBACK: {},
+    }
     try:
         result = await flow.async_configure(result["flow_id"], sections)
     except vol.Invalid as err:
         flow.async_abort(result["flow_id"])
-        connection.send_error(msg["id"], "add_failed", f"Couldn't add the speaker: {err}")
+        connection.send_error(
+            msg["id"], "add_failed", f"Couldn't add the speaker: {err}"
+        )
         return
     if result["type"] is not FlowResultType.CREATE_ENTRY:
         flow.async_abort(result["flow_id"])
@@ -756,11 +890,15 @@ def ws_subscribe(hass: HomeAssistant, connection, msg) -> None:
 
     @callback
     def forward(entry_id: str) -> None:
-        connection.send_message(websocket_api.event_message(msg["id"], {"entry_id": entry_id}))
+        connection.send_message(
+            websocket_api.event_message(msg["id"], {"entry_id": entry_id})
+        )
 
     @callback
     def artists_changed() -> None:
-        connection.send_message(websocket_api.event_message(msg["id"], {"entry_id": None, "artists": True}))
+        connection.send_message(
+            websocket_api.event_message(msg["id"], {"entry_id": None, "artists": True})
+        )
 
     unsubs = [
         async_dispatcher_connect(hass, SIGNAL_ANY_UPDATED, forward),
@@ -791,7 +929,9 @@ def _speaker_choices(hass: HomeAssistant) -> list[dict[str, Any]]:
     ]
 
 
-def _search_config_entry(hass: HomeAssistant, manager: MediaManager | None = None) -> str | None:
+def _search_config_entry(
+    hass: HomeAssistant, manager: MediaManager | None = None
+) -> str | None:
     """The Music Assistant config entry to search with, or None if search isn't possible."""
     from .ma_link import ma_config_entry
 
@@ -799,7 +939,9 @@ def _search_config_entry(hass: HomeAssistant, manager: MediaManager | None = Non
         return None
     if manager is not None and (cid := ma_config_entry(hass, manager.ma_link)):
         return cid
-    return next((cid for m in _managers(hass) if (cid := m.ma_link.config_entry_id)), None) or ma_config_entry(hass)
+    return next(
+        (cid for m in _managers(hass) if (cid := m.ma_link.config_entry_id)), None
+    ) or ma_config_entry(hass)
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/artists/list"})
@@ -823,7 +965,9 @@ def ws_artists_list(hass: HomeAssistant, connection, msg) -> None:
     {
         vol.Required("type"): f"{DOMAIN}/artists/search",
         vol.Required("query"): vol.All(str, vol.Strip, vol.Length(min=1, max=200)),
-        vol.Optional("media_type", default="artist"): vol.In(["artist", "album", "track", "playlist"]),
+        vol.Optional("media_type", default="artist"): vol.In(
+            ["artist", "album", "track", "playlist"]
+        ),
         vol.Optional("entry_id"): str,
         vol.Optional("limit", default=12): vol.All(int, vol.Range(min=1, max=50)),
     }
@@ -838,11 +982,16 @@ async def ws_artists_search(hass: HomeAssistant, connection, msg) -> None:
     if msg.get("entry_id") and (manager := _manager(hass, connection, msg)) is None:
         return
     results = await ma_search(
-        hass, _search_config_entry(hass, manager), msg["query"], msg["media_type"], limit=msg["limit"]
+        hass,
+        _search_config_entry(hass, manager),
+        msg["query"],
+        msg["media_type"],
+        limit=msg["limit"],
     )
     if results is None:
         connection.send_error(
-            msg["id"], "not_supported",
+            msg["id"],
+            "not_supported",
             "Searching needs Music Assistant. Add the Music Assistant integration, then try again.",
         )
         return
@@ -855,14 +1004,18 @@ async def ws_artists_search(hass: HomeAssistant, connection, msg) -> None:
         vol.Required("artist"): {
             vol.Optional("id"): vol.Any(None, str),
             vol.Required("name"): vol.All(str, vol.Strip, vol.Length(min=1, max=120)),
-            vol.Optional("uri"): vol.Any(None, vol.All(str, vol.Strip, vol.Length(max=1000))),
+            vol.Optional("uri"): vol.Any(
+                None, vol.All(str, vol.Strip, vol.Length(max=1000))
+            ),
             vol.Optional("provider"): vol.Any(None, str),
             vol.Optional("image"): vol.Any(None, vol.All(str, vol.Length(max=2000))),
             vol.Optional("aliases"): vol.Any(None, str, [str]),
             vol.Optional("speaker"): vol.Any(None, str),
             vol.Optional("radio"): bool,
             vol.Optional("shuffle"): bool,
-            vol.Optional("volume"): vol.Any(None, vol.All(int, vol.Range(min=0, max=100))),
+            vol.Optional("volume"): vol.Any(
+                None, vol.All(int, vol.Range(min=0, max=100))
+            ),
             # Sent back as it came from artists/list; the stored date is kept.
             vol.Optional("added"): vol.Any(None, str, int, float),
         },
@@ -880,7 +1033,9 @@ async def ws_artists_save(hass: HomeAssistant, connection, msg) -> None:
 
     data = dict(msg["artist"])
     if msg["find"] and not data.get("uri"):
-        results = await ma_search(hass, _search_config_entry(hass), data["name"], "artist", limit=5)
+        results = await ma_search(
+            hass, _search_config_entry(hass), data["name"], "artist", limit=5
+        )
         if results and (best := best_match(results, data["name"])):
             data["uri"] = best["uri"]
             data["provider"] = provider_of(best["uri"])
@@ -913,7 +1068,9 @@ def ws_artists_delete(hass: HomeAssistant, connection, msg) -> None:
         vol.Required("artist"): vol.All(str, vol.Strip, vol.Length(min=1, max=500)),
         vol.Optional("entry_id"): vol.Any(None, str),
         vol.Optional("uri"): vol.Any(None, str),
-        vol.Optional("media_type", default="artist"): vol.In(["artist", "album", "track", "playlist"]),
+        vol.Optional("media_type", default="artist"): vol.In(
+            ["artist", "album", "track", "playlist"]
+        ),
         vol.Optional("radio"): bool,
         vol.Optional("shuffle"): bool,
         vol.Optional("volume"): vol.Any(None, vol.All(int, vol.Range(min=0, max=100))),

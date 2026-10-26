@@ -20,9 +20,13 @@ from .state import MODES
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: MediaMgmtConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: MediaMgmtConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities([ModeSelect(entry.runtime_data), PlayArtistSelect(entry.runtime_data)])
+    async_add_entities(
+        [ModeSelect(entry.runtime_data), PlayArtistSelect(entry.runtime_data)]
+    )
 
 
 class ModeSelect(MediaMgmtEntity, SelectEntity):
@@ -51,7 +55,11 @@ class PlayArtistSelect(MediaMgmtEntity, SelectEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self.async_on_remove(async_dispatcher_connect(self.hass, SIGNAL_ARTISTS_UPDATED, self._artists_changed))
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_ARTISTS_UPDATED, self._artists_changed
+            )
+        )
 
     @callback
     def _artists_changed(self) -> None:
@@ -67,13 +75,21 @@ class PlayArtistSelect(MediaMgmtEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         # Like pressing play on the speaker: open to everyone, and every rule applies.
-        user = await self.hass.auth.async_get_user(self._context.user_id) if self._context and self._context.user_id else None
+        user = (
+            await self.hass.auth.async_get_user(self._context.user_id)
+            if self._context and self._context.user_id
+            else None
+        )
         result = await async_play_request(
-            self.hass, option, profile_id=self.manager.entry.entry_id, by=user.name if user else None
+            self.hass,
+            option,
+            profile_id=self.manager.entry.entry_id,
+            by=user.name if user else None,
         )
         if not result.ok:
             raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="play_failed",
+                translation_domain=DOMAIN,
+                translation_key="play_failed",
                 translation_placeholders={"message": result.message},
             )
         self._last = option

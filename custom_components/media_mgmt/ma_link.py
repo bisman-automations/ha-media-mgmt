@@ -74,7 +74,9 @@ def ma_entities(hass: HomeAssistant) -> list[er.RegistryEntry]:
     return [
         e
         for e in er.async_get(hass).entities.values()
-        if e.platform == MUSIC_ASSISTANT_DOMAIN and e.domain == MP_DOMAIN and not e.disabled
+        if e.platform == MUSIC_ASSISTANT_DOMAIN
+        and e.domain == MP_DOMAIN
+        and not e.disabled
     ]
 
 
@@ -98,7 +100,9 @@ def _area(hass: HomeAssistant, entry: er.RegistryEntry | None) -> str | None:
     return None
 
 
-def _names(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None) -> set[str]:
+def _names(
+    hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None
+) -> set[str]:
     names = set()
     if state := hass.states.get(entity_id):
         names.add(norm(state.name))
@@ -106,7 +110,9 @@ def _names(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None) 
         for name in (entry.name, entry.original_name):
             if name:
                 names.add(norm(name))
-        if entry.device_id and (device := dr.async_get(hass).async_get(entry.device_id)):
+        if entry.device_id and (
+            device := dr.async_get(hass).async_get(entry.device_id)
+        ):
             for name in (device.name_by_user, device.name):
                 if name:
                     names.add(norm(name))
@@ -124,13 +130,19 @@ def resolve(hass: HomeAssistant, entity_id: str, override: str | None = None) ->
     problem: str | None = None
     if override:
         picked = registry.async_get(override)
-        if picked is not None and picked.platform == MUSIC_ASSISTANT_DOMAIN and not picked.disabled:
+        if (
+            picked is not None
+            and picked.platform == MUSIC_ASSISTANT_DOMAIN
+            and not picked.disabled
+        ):
             return _found(picked, LINK_MANUAL)
         problem = f"The Music Assistant player picked in the settings, {override}, isn't there any more"
 
     players = ma_entities(hass)
     if not players:
-        return MALink(detail=problem or "Music Assistant isn't set up, or has no players")
+        return MALink(
+            detail=problem or "Music Assistant isn't set up, or has no players"
+        )
 
     def done(found: er.RegistryEntry, method: str) -> MALink:
         return _found(found, method, problem)
@@ -149,7 +161,9 @@ def resolve(hass: HomeAssistant, entity_id: str, override: str | None = None) ->
                     return done(player, LINK_SONOS)
 
         # AirPlay and others named after the MAC address.
-        device = dr.async_get(hass).async_get(entry.device_id) if entry.device_id else None
+        device = (
+            dr.async_get(hass).async_get(entry.device_id) if entry.device_id else None
+        )
         macs = {
             mac
             for kind, value in (device.connections if device else set())
@@ -161,7 +175,10 @@ def resolve(hass: HomeAssistant, entity_id: str, override: str | None = None) ->
                 if pid.startswith("ap") and _mac(pid[2:]) in macs:
                     return done(player, LINK_AIRPLAY)
             for player in players:
-                if _mac(player.unique_id[-17:]) in macs or _mac(player.unique_id[-12:]) in macs:
+                if (
+                    _mac(player.unique_id[-17:]) in macs
+                    or _mac(player.unique_id[-12:]) in macs
+                ):
                     return done(player, LINK_MAC)
 
     # Same name, as long as only one Music Assistant player has it.

@@ -40,8 +40,19 @@ PLAY_TRACK = "track"
 PLAY_SOURCE = "source"  # a source or favourite on the speaker, e.g. a Sonos favourite
 PLAY_CONTENT = "content"  # a media content ID (URI) and type
 PLAY_RESUME = "resume"  # press play on whatever played last
-PLAY_NONE = "none"  # play nothing: only limit the volume between the start and stop times
-PLAY_KINDS = [PLAY_ARTIST, PLAY_PLAYLIST, PLAY_ALBUM, PLAY_TRACK, PLAY_SOURCE, PLAY_CONTENT, PLAY_RESUME, PLAY_NONE]
+PLAY_NONE = (
+    "none"  # play nothing: only limit the volume between the start and stop times
+)
+PLAY_KINDS = [
+    PLAY_ARTIST,
+    PLAY_PLAYLIST,
+    PLAY_ALBUM,
+    PLAY_TRACK,
+    PLAY_SOURCE,
+    PLAY_CONTENT,
+    PLAY_RESUME,
+    PLAY_NONE,
+]
 
 STOP_ACTIONS = ["pause", "stop", "turn_off"]
 REPEAT_MODES = ["off", "all", "one"]
@@ -86,7 +97,11 @@ class Occurrence:
 
     def contains(self, now: datetime) -> bool:
         """Inside the run's start..stop time (only for schedules with both)."""
-        return self.start is not None and self.stop is not None and self.start <= now < self.stop
+        return (
+            self.start is not None
+            and self.stop is not None
+            and self.start <= now < self.stop
+        )
 
     def start_due(self, now: datetime) -> bool:
         if self.start is None or not self.start <= now < self.start + GRACE:
@@ -97,7 +112,11 @@ class Occurrence:
         return self.stop is not None and self.stop <= now < self.stop + GRACE
 
     def fade_due(self, now: datetime) -> bool:
-        return self.fade_from is not None and self.stop is not None and self.fade_from <= now < self.stop
+        return (
+            self.fade_from is not None
+            and self.stop is not None
+            and self.fade_from <= now < self.stop
+        )
 
 
 @dataclass
@@ -124,9 +143,13 @@ class Schedule:
         """Validate a stored or submitted schedule. Raises ValueError."""
         name = " ".join(str(raw.get("name") or "").split())[:60] or "Schedule"
         try:
-            days = sorted({int(d) for d in raw.get("days", ALL_DAYS) if 0 <= int(d) <= 6})
+            days = sorted(
+                {int(d) for d in raw.get("days", ALL_DAYS) if 0 <= int(d) <= 6}
+            )
         except (TypeError, ValueError) as err:
-            raise ValueError("days must be numbers from 0 (Monday) to 6 (Sunday)") from err
+            raise ValueError(
+                "days must be numbers from 0 (Monday) to 6 (Sunday)"
+            ) from err
         if not days:
             raise ValueError("pick at least one day")
         start = parse_hhmm(raw.get("start"))
@@ -151,7 +174,11 @@ class Schedule:
         volume = None if volume in (None, "") else max(0, min(100, int(volume)))
         limit = raw.get("volume_limit")
         # Only a schedule with a start and a stop time is ever "playing".
-        limit = None if limit in (None, "") or start is None or stop is None else max(5, min(100, int(limit)))
+        limit = (
+            None
+            if limit in (None, "") or start is None or stop is None
+            else max(5, min(100, int(limit)))
+        )
         if limit is not None and volume is not None:
             volume = min(volume, limit)
         fade = max(0, min(MAX_FADE, int(raw.get("fade_minutes") or 0))) if stop else 0
@@ -212,7 +239,9 @@ class Schedule:
 
     def occurrence(self, day: date, tz) -> Occurrence:
         """The run belonging to `day`."""
-        start = datetime.combine(day, _time(self.start), tzinfo=tz) if self.start else None
+        start = (
+            datetime.combine(day, _time(self.start), tzinfo=tz) if self.start else None
+        )
         stop = None
         fade_from = None
         if self.stop:
@@ -228,7 +257,11 @@ class Schedule:
     def occurrences(self, now: datetime) -> list[Occurrence]:
         """Yesterday's and today's runs (yesterday's may stop this morning)."""
         days = (now.date() - timedelta(days=1), now.date())
-        return [self.occurrence(day, now.tzinfo) for day in days if day.weekday() in self.days]
+        return [
+            self.occurrence(day, now.tzinfo)
+            for day in days
+            if day.weekday() in self.days
+        ]
 
     def next_run(self, now: datetime) -> datetime | None:
         """When this schedule next starts (or, with no start, next stops)."""
@@ -249,6 +282,6 @@ def load_schedules(raw: list[dict[str, Any]] | None) -> list[Schedule]:
     for item in raw or []:
         try:
             schedules.append(Schedule.from_dict(item))
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
     return schedules

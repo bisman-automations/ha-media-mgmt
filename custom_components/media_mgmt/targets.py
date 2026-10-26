@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from .const import DOMAIN
 from .media import norm
@@ -63,14 +67,23 @@ def device_area(hass: HomeAssistant, device_id: str | None) -> str | None:
 
 def speaker_areas(hass: HomeAssistant, manager: MediaManager) -> set[str]:
     """The speaker's area, and its Music Assistant player's."""
-    areas = {entity_area(hass, manager.entity_id), entity_area(hass, manager.ma_link.entity_id)}
+    areas = {
+        entity_area(hass, manager.entity_id),
+        entity_area(hass, manager.ma_link.entity_id),
+    }
     areas.discard(None)
     return areas  # type: ignore[return-value]
 
 
 def _names(hass: HomeAssistant, manager: MediaManager) -> set[str]:
-    names = {norm(manager.name), norm(manager.player.name), norm(manager.entity_id.split(".", 1)[-1].replace("_", " "))}
-    if manager.ma_link.entity_id and (state := hass.states.get(manager.ma_link.entity_id)):
+    names = {
+        norm(manager.name),
+        norm(manager.player.name),
+        norm(manager.entity_id.split(".", 1)[-1].replace("_", " ")),
+    }
+    if manager.ma_link.entity_id and (
+        state := hass.states.get(manager.ma_link.entity_id)
+    ):
         names.add(norm(state.name))
     areas = ar.async_get(hass)
     for area_id in speaker_areas(hass, manager):
@@ -81,7 +94,9 @@ def _names(hass: HomeAssistant, manager: MediaManager) -> set[str]:
     return names
 
 
-def _by_area(hass: HomeAssistant, found: list[MediaManager], area_id: str) -> list[MediaManager]:
+def _by_area(
+    hass: HomeAssistant, found: list[MediaManager], area_id: str
+) -> list[MediaManager]:
     return [m for m in found if area_id in speaker_areas(hass, m)]
 
 
@@ -106,11 +121,21 @@ def find_speaker(
 
     if profile_id:
         match = next((m for m in found if m.entry.entry_id == profile_id), None)
-        return Target(match) if match else Target(error=SPEAKER_NOT_FOUND, detail=profile_id)
+        return (
+            Target(match)
+            if match
+            else Target(error=SPEAKER_NOT_FOUND, detail=profile_id)
+        )
 
     if entity_id:
-        match = next((m for m in found if entity_id in (m.entity_id, m.ma_link.entity_id)), None)
-        return Target(match) if match else Target(error=SPEAKER_NOT_FOUND, detail=entity_id)
+        match = next(
+            (m for m in found if entity_id in (m.entity_id, m.ma_link.entity_id)), None
+        )
+        return (
+            Target(match)
+            if match
+            else Target(error=SPEAKER_NOT_FOUND, detail=entity_id)
+        )
 
     if speaker and speaker.strip():
         wanted = norm(speaker)
@@ -132,7 +157,9 @@ def find_speaker(
         partial = [m for m in found if any(wanted_short in n for n in _names(hass, m))]
         if len(partial) == 1:
             return Target(partial[0])
-        return Target(error=SPEAKER_AMBIGUOUS if partial else SPEAKER_NOT_FOUND, detail=speaker)
+        return Target(
+            error=SPEAKER_AMBIGUOUS if partial else SPEAKER_NOT_FOUND, detail=speaker
+        )
 
     if area_id:
         in_area = _by_area(hass, found, area_id)
@@ -140,10 +167,15 @@ def find_speaker(
             return Target(in_area[0])
         if len(in_area) > 1:
             area = ar.async_get(hass).async_get_area(area_id)
-            return Target(error=SPEAKER_AMBIGUOUS, detail=area.name if area else area_id)
+            return Target(
+                error=SPEAKER_AMBIGUOUS, detail=area.name if area else area_id
+            )
 
     if default_entity:
-        match = next((m for m in found if default_entity in (m.entity_id, m.ma_link.entity_id)), None)
+        match = next(
+            (m for m in found if default_entity in (m.entity_id, m.ma_link.entity_id)),
+            None,
+        )
         if match:
             return Target(match)
 

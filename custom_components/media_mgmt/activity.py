@@ -23,7 +23,9 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 # Event types
-EV_STATE = "state"  # state, source: the speaker started playing, paused, stopped, turned off
+EV_STATE = (
+    "state"  # state, source: the speaker started playing, paused, stopped, turned off
+)
 EV_PLAY = "play"  # key, title, artist, album, source: a new song started
 EV_BLOCKED = "blocked"  # kind, rule, title, artist, album, source, action, acted
 EV_ENFORCEMENT = "enforcement"  # state, reason, quiet_window, schedule
@@ -36,15 +38,31 @@ EV_BLOCK = "block"  # Stop music now
 EV_UNBLOCK = "unblock"
 EV_RESET = "reset"
 EV_RULE = "rule"  # kind, value, added, by: blocked music changed
-EV_SCHEDULE = "schedule"  # id, name, action (started/failed/fading/stopped/stop_idle), detail, by
+EV_SCHEDULE = (
+    "schedule"  # id, name, action (started/failed/fading/stopped/stop_idle), detail, by
+)
 EV_SLEEP = "sleep"  # action (set/cancelled/fired), minutes, fade, by
 EV_VOLUME = "volume"  # from, to, acted: turned down to the cap
 EV_PLAY_REQUEST = "play_request"  # name, media_type, ok, method, reason, detail, by: asked to play an artist
 
 EVENT_TYPES = [
-    EV_STATE, EV_PLAY, EV_BLOCKED, EV_ENFORCEMENT, EV_STOPPED, EV_MODE, EV_FILTER,
-    EV_ADULT_MODE, EV_EXTENSION, EV_BLOCK, EV_UNBLOCK, EV_RESET, EV_RULE, EV_SCHEDULE,
-    EV_SLEEP, EV_VOLUME, EV_PLAY_REQUEST,
+    EV_STATE,
+    EV_PLAY,
+    EV_BLOCKED,
+    EV_ENFORCEMENT,
+    EV_STOPPED,
+    EV_MODE,
+    EV_FILTER,
+    EV_ADULT_MODE,
+    EV_EXTENSION,
+    EV_BLOCK,
+    EV_UNBLOCK,
+    EV_RESET,
+    EV_RULE,
+    EV_SCHEDULE,
+    EV_SLEEP,
+    EV_VOLUME,
+    EV_PLAY_REQUEST,
 ]
 
 KEEP_EVENT_DAYS = 90
@@ -52,7 +70,15 @@ KEEP_DAILY_DAYS = 400
 MAX_EVENTS = 20000
 MAX_LIBRARY = 3000
 MAX_DAY_TRACKS = 150  # songs kept in a day's totals
-LIBRARY_FIELDS = ("title", "artist", "album", "source", "playlist", "content_id", "content_type")
+LIBRARY_FIELDS = (
+    "title",
+    "artist",
+    "album",
+    "source",
+    "playlist",
+    "content_id",
+    "content_type",
+)
 DICT_FIELDS = ("tracks", "artists", "albums", "sources")
 
 
@@ -64,8 +90,14 @@ def _fold(value: Any) -> str:
     return " ".join(str(value or "").casefold().split())
 
 
-def _top_dict(values: dict[str, int] | None, limit: int | None = None) -> dict[str, int]:
-    items = sorted(((k, int(v)) for k, v in (values or {}).items() if k and v), key=lambda i: i[1], reverse=True)
+def _top_dict(
+    values: dict[str, int] | None, limit: int | None = None
+) -> dict[str, int]:
+    items = sorted(
+        ((k, int(v)) for k, v in (values or {}).items() if k and v),
+        key=lambda i: i[1],
+        reverse=True,
+    )
     return dict(items[:limit] if limit else items)
 
 
@@ -87,7 +119,11 @@ class ActivityLog:
     # ---- writing ---------------------------------------------------------------
 
     def add(self, when: datetime, event_type: str, **data: Any) -> dict[str, Any]:
-        event = {"t": when.isoformat(), "type": event_type, **{k: v for k, v in data.items() if v is not None}}
+        event = {
+            "t": when.isoformat(),
+            "type": event_type,
+            **{k: v for k, v in data.items() if v is not None},
+        }
         if self.events and _ts(self.events[-1]) > when:
             # Keep time order if a clock adjustment slipped in.
             index = len(self.events)
@@ -106,7 +142,11 @@ class ActivityLog:
             return
         item = self.library.get(key)
         if item is None:
-            item = self.library[key] = {"plays": 0, "seconds": 0, "first": when.isoformat()}
+            item = self.library[key] = {
+                "plays": 0,
+                "seconds": 0,
+                "first": when.isoformat(),
+            }
         for name in LIBRARY_FIELDS:
             if media.get(name):
                 item[name] = media[name]
@@ -171,10 +211,12 @@ class ActivityLog:
             # Keep the last state and song so the first remaining day knows what was on.
             old = self.events[:first_kept]
             carried = [
-                e for e in (
+                e
+                for e in (
                     next((e for e in reversed(old) if e["type"] == EV_STATE), None),
                     next((e for e in reversed(old) if e["type"] == EV_PLAY), None),
-                ) if e
+                )
+                if e
             ]
             self.events = sorted(carried, key=_ts) + self.events[first_kept:]
         oldest_day = (now.date() - timedelta(days=KEEP_DAILY_DAYS)).isoformat()
@@ -185,7 +227,10 @@ class ActivityLog:
 
     @property
     def last_state(self) -> str | None:
-        return next((e.get("state") for e in reversed(self.events) if e["type"] == EV_STATE), None)
+        return next(
+            (e.get("state") for e in reversed(self.events) if e["type"] == EV_STATE),
+            None,
+        )
 
     @property
     def last_play(self) -> dict[str, Any] | None:
@@ -202,7 +247,9 @@ class ActivityLog:
     def events_between(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
         return [e for e in self.events if start <= _ts(e) < end]
 
-    def listening_segments(self, start: datetime, end: datetime, now: datetime) -> list[dict[str, Any]]:
+    def listening_segments(
+        self, start: datetime, end: datetime, now: datetime
+    ) -> list[dict[str, Any]]:
         """Stretches of time music played, split by song, clipped to [start, end).
 
         A stretch still going at `now` is marked live.
@@ -253,19 +300,33 @@ class ActivityLog:
                 segments[-1]["live"] = True
         return segments
 
-    def history(self, query: str | None = None, limit: int = 200, sort: str = "last") -> list[dict[str, Any]]:
+    def history(
+        self, query: str | None = None, limit: int = 200, sort: str = "last"
+    ) -> list[dict[str, Any]]:
         """Songs played, most recent (or most played, or most time) first."""
         q = _fold(query)
         items = [
             {"key": key, **item}
             for key, item in self.library.items()
-            if not q or any(q in _fold(item.get(f)) for f in ("title", "artist", "album", "source"))
+            if not q
+            or any(
+                q in _fold(item.get(f)) for f in ("title", "artist", "album", "source")
+            )
         ]
         sort_key = {"plays": "plays", "seconds": "seconds"}.get(sort, "last")
-        items.sort(key=lambda i: (i.get(sort_key) or 0, i.get("last", "")) if sort_key != "last" else i.get("last", ""), reverse=True)
+        items.sort(
+            key=lambda i: (
+                (i.get(sort_key) or 0, i.get("last", ""))
+                if sort_key != "last"
+                else i.get("last", "")
+            ),
+            reverse=True,
+        )
         return items[:limit]
 
-    def artists(self, query: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+    def artists(
+        self, query: str | None = None, limit: int = 200
+    ) -> list[dict[str, Any]]:
         """Artists played, most recent first, with something of theirs to play again."""
         q = _fold(query)
         groups: dict[str, dict[str, Any]] = {}
@@ -277,7 +338,13 @@ class ActivityLog:
             key = _fold(artist)
             group = groups.get(key)
             if group is None:
-                group = groups[key] = {"artist": artist, "plays": 0, "seconds": 0, "songs": 0, "last": ""}
+                group = groups[key] = {
+                    "artist": artist,
+                    "plays": 0,
+                    "seconds": 0,
+                    "songs": 0,
+                    "last": "",
+                }
             group["plays"] += item.get("plays", 0)
             group["seconds"] += item.get("seconds", 0)
             group["songs"] += 1
@@ -326,7 +393,7 @@ def merge_series(all_series: list[list[dict[str, Any]]]) -> list[dict[str, Any]]
     if not all_series:
         return []
     merged = []
-    for days in zip(*all_series):
+    for days in zip(*all_series, strict=False):
         day: dict[str, Any] = {
             "date": days[0]["date"],
             "budget_minutes": 0,
@@ -359,7 +426,8 @@ def summarize(series: list[dict[str, Any]], limit: int = 10) -> dict[str, Any]:
     listening = [d["used_seconds"] + d.get("schedule_seconds", 0) for d in recorded]
     total = sum(listening)
     over = [
-        d for d in recorded
+        d
+        for d in recorded
         if d["budget_minutes"] > 0
         and d["used_seconds"] >= (d["budget_minutes"] + d["extension_minutes"]) * 60
     ]
@@ -372,9 +440,17 @@ def summarize(series: list[dict[str, Any]], limit: int = 10) -> dict[str, Any]:
         "blocked": sum(d["blocked"] for d in recorded),
         "plays": sum(d["plays"] for d in recorded),
         "hours": [sum(d["hours"][h] for d in recorded) for h in range(24)],
-        "top_artists": [{"artist": k, "seconds": v} for k, v in _top(recorded, "artists", limit)],
-        "top_tracks": [{"key": k, "seconds": v} for k, v in _top(recorded, "tracks", limit)],
-        "top_albums": [{"album": k, "seconds": v} for k, v in _top(recorded, "albums", limit)],
-        "top_sources": [{"source": k, "seconds": v} for k, v in _top(recorded, "sources", limit)],
+        "top_artists": [
+            {"artist": k, "seconds": v} for k, v in _top(recorded, "artists", limit)
+        ],
+        "top_tracks": [
+            {"key": k, "seconds": v} for k, v in _top(recorded, "tracks", limit)
+        ],
+        "top_albums": [
+            {"album": k, "seconds": v} for k, v in _top(recorded, "albums", limit)
+        ],
+        "top_sources": [
+            {"source": k, "seconds": v} for k, v in _top(recorded, "sources", limit)
+        ],
         "recorded_days": len(recorded),
     }

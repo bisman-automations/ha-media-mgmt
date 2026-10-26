@@ -10,18 +10,27 @@ from homeassistant.components.homeassistant import async_should_expose
 from homeassistant.components.llm import LLMTools
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import intent
-from homeassistant.helpers.llm import LLM_API_ASSIST, IntentTool, LLMContext, ToolAnnotations
+from homeassistant.helpers.llm import (
+    LLM_API_ASSIST,
+    IntentTool,
+    LLMContext,
+    ToolAnnotations,
+)
 
 from .const import DOMAIN, INTENT_PLAY_ARTIST
 from .targets import managers
 
 
 @callback
-def async_get_tools(hass: HomeAssistant, llm_context: LLMContext, api_id: str) -> LLMTools | None:
+def async_get_tools(
+    hass: HomeAssistant, llm_context: LLMContext, api_id: str
+) -> LLMTools | None:
     """The play artist tool, when a managed speaker is exposed to the assistant."""
     if api_id != LLM_API_ASSIST:
         return None
-    handler = next((h for h in intent.async_get(hass) if h.intent_type == INTENT_PLAY_ARTIST), None)
+    handler = next(
+        (h for h in intent.async_get(hass) if h.intent_type == INTENT_PLAY_ARTIST), None
+    )
     if handler is None:
         return None
     speakers = [
@@ -39,7 +48,9 @@ def async_get_tools(hass: HomeAssistant, llm_context: LLMContext, api_id: str) -
         handler,
         title="Play artist",
         integration=DOMAIN,
-        annotations=ToolAnnotations(read_only=False, destructive=False, idempotent=False, open_world=True),
+        annotations=ToolAnnotations(
+            read_only=False, destructive=False, idempotent=False, open_world=True
+        ),
     )
     prompt = (
         f"To play an artist or band, use {DOMAIN}__{INTENT_PLAY_ARTIST}. "

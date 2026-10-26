@@ -55,17 +55,23 @@ class MusicFilter:
         self._album_bases = {base_title(a) for a in self.albums}
         self._sources = {norm(s) for s in self.sources}
         self._keywords = [
-            re.compile(rf"(?<!\w){re.escape(norm(k))}(?!\w)") for k in self.keywords if norm(k)
+            re.compile(rf"(?<!\w){re.escape(norm(k))}(?!\w)")
+            for k in self.keywords
+            if norm(k)
         ]
         self._tracks: list[tuple[str, str, str | None]] = []
         for entry in self.tracks:
             title, artist = _parse_track(entry)
             # Keep the whole entry as a title too: "Hey Jude - Remastered" is one title.
-            self._tracks.append((norm(entry), base_title(title), norm(artist) if artist else None))
+            self._tracks.append(
+                (norm(entry), base_title(title), norm(artist) if artist else None)
+            )
 
     @property
     def empty(self) -> bool:
-        return not (self.tracks or self.artists or self.albums or self.sources or self.keywords)
+        return not (
+            self.tracks or self.artists or self.albums or self.sources or self.keywords
+        )
 
     def as_dict(self) -> dict[str, list[str]]:
         return {
@@ -89,17 +95,25 @@ class MusicFilter:
             if artist in self._artists:
                 return "artist", self._original(self.artists, artist)
         album = media.get("album")
-        if album and (norm(album) in self._albums or base_title(album) in self._album_bases):
+        if album and (
+            norm(album) in self._albums or base_title(album) in self._album_bases
+        ):
             return "album", album
         if title:
             whole, base = norm(title), base_title(title)
-            for (entry, entry_title, entry_artist), original in zip(self._tracks, self.tracks):
+            for (entry, entry_title, entry_artist), original in zip(
+                self._tracks, self.tracks, strict=False
+            ):
                 if entry in (whole, base):
                     return "track", original
-                if entry_title in (whole, base) and (entry_artist is None or entry_artist in artists):
+                if entry_title in (whole, base) and (
+                    entry_artist is None or entry_artist in artists
+                ):
                     return "track", original
         text = " ".join(norm(v) for v in (title, album) if v)
-        for pattern, original in zip(self._keywords, [k for k in self.keywords if norm(k)]):
+        for pattern, original in zip(
+            self._keywords, [k for k in self.keywords if norm(k)], strict=False
+        ):
             if pattern.search(text):
                 return "keyword", original
         return None

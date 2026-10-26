@@ -39,12 +39,16 @@ class PlayArtistIntentHandler(intent.IntentHandler):
     @property
     def slot_schema(self) -> dict:
         return {
-            _schema.Required("artist", description="The artist or band to play"): cv.string,
-            _schema.Optional(
-                "speaker", description="The speaker or room to play on, if the person named one"
+            _schema.Required(
+                "artist", description="The artist or band to play"
             ): cv.string,
             _schema.Optional(
-                "radio", description="Keep playing similar music after the artist's songs (radio)"
+                "speaker",
+                description="The speaker or room to play on, if the person named one",
+            ): cv.string,
+            _schema.Optional(
+                "radio",
+                description="Keep playing similar music after the artist's songs (radio)",
             ): cv.boolean,
             _schema.Optional("preferred_area_id"): cv.string,
         }
@@ -57,7 +61,9 @@ class PlayArtistIntentHandler(intent.IntentHandler):
         artist = slots["artist"]["value"]
         speaker = slots.get("speaker", {}).get("value")
         radio = slots.get("radio", {}).get("value")
-        area_id = slots.get("preferred_area_id", {}).get("value") or device_area(hass, intent_obj.device_id)
+        area_id = slots.get("preferred_area_id", {}).get("value") or device_area(
+            hass, intent_obj.device_id
+        )
         user = None
         if intent_obj.context.user_id:
             user = await hass.auth.async_get_user(intent_obj.context.user_id)
@@ -73,8 +79,12 @@ class PlayArtistIntentHandler(intent.IntentHandler):
         if result.ok:
             response.async_set_speech(result.message)
         else:
-            response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, result.message)
-        response.async_set_speech_slots({"artist": result.name, "speaker": result.speaker})
+            response.async_set_error(
+                intent.IntentResponseErrorCode.FAILED_TO_HANDLE, result.message
+            )
+        response.async_set_speech_slots(
+            {"artist": result.name, "speaker": result.speaker}
+        )
         return response
 
 

@@ -45,7 +45,11 @@ class SavedArtists:
         """Add an artist, or update one (same ID, or same name)."""
         artist = SavedArtist.from_dict(data)
         existing = next(
-            (i for i, a in enumerate(self.artists) if a.id == artist.id or (not data.get("id") and a.matches(artist.name))),
+            (
+                i
+                for i, a in enumerate(self.artists)
+                if a.id == artist.id or (not data.get("id") and a.matches(artist.name))
+            ),
             None,
         )
         if existing is None:
@@ -121,7 +125,11 @@ async def async_play_request(
     name = saved.name if saved else artist.strip()
     if target.manager is None:
         return PlayResult(
-            ok=False, name=name, media_type=media_type, reason=target.error, message=target_message(target)
+            ok=False,
+            name=name,
+            media_type=media_type,
+            reason=target.error,
+            message=target_message(target),
         )
     if saved is not None:
         uri = uri or saved.uri

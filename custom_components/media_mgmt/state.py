@@ -23,7 +23,14 @@ STATE_ENFORCING = "enforcing"
 STATE_SCHEDULE = "schedule"  # a schedule's music is playing through the limits
 STATE_PAUSED = "paused"
 STATE_ADULT_MODE = "adult_mode"
-STATES = [STATE_OK, STATE_WARNING, STATE_ENFORCING, STATE_SCHEDULE, STATE_PAUSED, STATE_ADULT_MODE]
+STATES = [
+    STATE_OK,
+    STATE_WARNING,
+    STATE_ENFORCING,
+    STATE_SCHEDULE,
+    STATE_PAUSED,
+    STATE_ADULT_MODE,
+]
 
 # Why music isn't allowed
 REASON_MANUAL = "manual"

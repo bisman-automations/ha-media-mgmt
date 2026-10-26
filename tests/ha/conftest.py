@@ -9,8 +9,17 @@ from homeassistant.setup import async_setup_component
 
 REPO_COMPONENTS = str(pathlib.Path(__file__).parents[2] / "custom_components")
 SERVICES = (
-    "media_pause", "media_stop", "media_play", "media_next_track", "turn_off", "turn_on",
-    "volume_set", "play_media", "select_source", "shuffle_set", "repeat_set",
+    "media_pause",
+    "media_stop",
+    "media_play",
+    "media_next_track",
+    "turn_off",
+    "turn_on",
+    "volume_set",
+    "play_media",
+    "select_source",
+    "shuffle_set",
+    "repeat_set",
 )
 
 
