@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-26
+
+### Changed
+
+- The README follows the same layout as the other bisman-automations integrations: a button that opens it in HACS, a button that starts setup, and troubleshooting steps for debug logs and diagnostics.
+- Each release now includes `media_mgmt.zip` for installing without HACS.
+
 ## [1.2.0] - 2026-10-26
 
 ### Added
@@ -86,7 +93,8 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...v1.0.0
