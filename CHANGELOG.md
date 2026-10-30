@@ -5,13 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.1] - 2026-10-26
+## [1.3.0] - 2026-10-30
 
 ### Changed
 
+- **Requires Home Assistant 2026.8 or newer.** The older way of showing the profile under the speaker's device is gone; the profile shows under the speaker's **Linked devices**.
 - The README follows the same layout as the other bisman-automations integrations: a button that opens it in HACS, a button that starts setup, and troubleshooting steps for debug logs and diagnostics.
 - Each release now includes `media_mgmt.zip` for installing without HACS.
 - The changelog no longer keeps an Unreleased section, and the agent notes follow the updated shared release rules.
+
+### Fixed
+
+- **AI assistants get the "play an artist" tool on Home Assistant 2026.8 and 2026.9.** It only loaded on 2026.10 and newer.
+
+### Security
+
+- **Diagnostics leave out picture links and announcement speakers.** A speaker's cover art link carries an access token, which used to be included in the file.
 
 ## [1.2.0] - 2026-10-26
 
@@ -92,7 +101,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
-[1.2.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...v1.2.1
+[1.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v0.3.0...v1.0.0
