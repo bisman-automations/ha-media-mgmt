@@ -170,29 +170,27 @@ def _link_devices(
     speaker = (
         registry.async_get(entity.device_id) if entity and entity.device_id else None
     )
-    if hasattr(registry, "async_get_devices"):
-        # Newer Home Assistant: devices from different integrations that share
-        # an identifier are listed under each other's Linked devices.
-        own_id = (DOMAIN, entry.entry_id)
-        own = registry.async_get_or_create(
-            config_entry_id=entry.entry_id,
-            identifiers={own_id},
-            name=f"Media Mgmt — {entry.title}",
-            manufacturer="Media Mgmt",
-            model="Speaker profile",
-            entry_type=dr.DeviceEntryType.SERVICE,
-        )
-        shared = (
-            set(speaker.identifiers)
-            if speaker and speaker.config_entry_id != entry.entry_id
-            else set()
-        )
-        registry.async_update_device(
-            own.id, new_identifiers={own_id, *shared}, via_device_id=None
-        )
-    elif speaker and entry.entry_id not in speaker.config_entries:
-        # Older Home Assistant: add the profile to the speaker's device.
-        registry.async_update_device(speaker.id, add_config_entry_id=entry.entry_id)
+    # Devices from different integrations that share an identifier are listed
+    # under each other's Linked devices.
+    own_id = (DOMAIN, entry.entry_id)
+    own = registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={own_id},
+        name=f"Media Mgmt — {entry.title}",
+        manufacturer="Media Mgmt",
+        model="Speaker profile",
+        entry_type=dr.DeviceEntryType.SERVICE,
+    )
+    shared = (
+        set(speaker.identifiers)
+        if speaker and speaker.config_entry_id != entry.entry_id
+        else set()
+    )
+    changes: dict = {"new_identifiers": {own_id, *shared}}
+    if own.via_device_id is not None:
+        # Before 2026.8 the profile was shown under the speaker instead.
+        changes["via_device_id"] = None
+    registry.async_update_device(own.id, **changes)
 
 
 # ---- services -----------------------------------------------------------------------

@@ -3,7 +3,7 @@
 # Media Mgmt
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.8%2B-blue.svg)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/bisman-automations/ha-media-mgmt)](https://github.com/bisman-automations/ha-media-mgmt/releases)
 [![Test](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/test.yml/badge.svg)](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/test.yml)
 [![Validate](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-media-mgmt/actions/workflows/validate.yml)
@@ -34,7 +34,7 @@ It's the music companion to [TV Mgmt](https://github.com/bisman-automations/ha-t
 1. Click the button above, or in HACS open the menu, choose **Custom repositories**, and add `https://github.com/bisman-automations/ha-media-mgmt` as an **Integration**.
 2. Download **Media Mgmt** and restart Home Assistant.
 
-Requires **Home Assistant 2026.3 or newer**.
+Requires **Home Assistant 2026.8 or newer**.
 
 ### Manual
 
@@ -340,7 +340,7 @@ ruff check . && ruff format --check .
 pytest
 ```
 
-To test against the oldest supported Home Assistant (2026.3), use Python 3.14 and
+To test against the oldest supported Home Assistant (2026.8), use Python 3.14 and
 `pip install -r requirements_test_min.txt` instead.
 
 CI runs the same checks on every push and pull request, on both Home Assistant

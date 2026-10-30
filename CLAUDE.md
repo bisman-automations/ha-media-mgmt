@@ -26,14 +26,14 @@ The sidebar app is the product. Every setting must be manageable there, not only
 - **Settings apply live, without reloading.** The update listener calls `MediaManager.apply_options()`. Don't reload the entry in the listener, and never pair an update listener with reloading methods in a config flow (`async_update_reload_and_abort`, or `_abort_if_unique_id_configured(updates=...)`): that's an error from Home Assistant 2026.12.
 - **Schedules live in their own `Store`, not in options**, so editing them never touches the config entry.
 - **Stored data must stay backward compatible.** New `ProfileState` fields need defaults, since unknown keys are dropped on load. New schedule fields must default so that schedules saved by older versions load unchanged (`load_schedules` skips anything that no longer validates, which would silently delete a user's schedule).
-- **Support Home Assistant 2026.3 and newer** (`hacs.json`). Device linking has two paths, chosen by `hasattr(registry, "async_get_devices")`: 2026.8+ links devices through shared identifiers, older versions use `via_device` and add the entry to the speaker's device. On 2026.8+ never pass `via_device` (removed in 2027.8) and never read `DeviceEntry.config_entries`. `DeviceInfo` is a dataclass from 2026.11: build it with keyword arguments, never as a dict.
+- **Support Home Assistant 2026.8 and newer** (`hacs.json`). The profile's device shares the speaker's identifiers, so they show as linked devices. Never pass `via_device` (removed in 2027.8), never read `DeviceEntry.config_entries`, and don't add the profile to the speaker's device. Newer APIs (such as `ToolAnnotations` for the AI tool, 2026.10) are imported with a fallback. `DeviceInfo` is a dataclass from 2026.11: build it with keyword arguments, never as a dict.
 - **Access checks:** every websocket command uses `@require_access`, admin-only ones (speakers, access) use `require_admin`, and entity actions and services call `async_ensure_allowed`. Automations (no user) are always allowed. Playing an artist (`play_artist`, the intent, the Play artist select and buttons) is deliberately open to everyone, like pressing play; the rules still decide. Changing saved artists needs access.
 - **Panel:** escape everything with `esc()`. Wrap every `localStorage` use in try/catch. Keep using Home Assistant's theme variables so it works in light and dark mode. Check it at phone width (390px) as well as desktop.
 - `strings.json` and `translations/en.json` must be identical.
 
 ## Testing
 
-Run the shared checks at the end of this file on both the oldest supported Home Assistant (`requirements_test_min.txt`, 2026.3, which still takes the pre-2026.8 device path) and the newest (`requirements_test.txt`). Both need Python 3.14. CI runs both.
+Run the shared checks at the end of this file on both the oldest supported Home Assistant (`requirements_test_min.txt`, 2026.8) and the newest (`requirements_test.txt`). Both need Python 3.14. CI runs both.
 
 - Treat any `Detected that custom integration 'media_mgmt' ...` warning in the output as a bug to fix, even if tests pass.
 - `tests/test_logic.py` covers the pure modules; `tests/ha/` runs inside Home Assistant.

@@ -581,10 +581,15 @@ async def test_profile_shows_music_assistant_link(
     from custom_components.media_mgmt.diagnostics import (
         async_get_config_entry_diagnostics,
     )
-    from homeassistant.components.diagnostics import REDACTED  # noqa: F401
+    from homeassistant.components.diagnostics import REDACTED
 
+    set_speaker(hass, entity_picture="/api/media_player_proxy/x?token=abc123")
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["player"]["music_assistant"]["method"] == "sonos"
+    # Picture URLs carry a token, so they never leave in diagnostics.
+    attributes = diag["player"]["state"]["attributes"]
+    assert attributes["entity_picture"] == REDACTED
+    assert "token=" not in str(diag)
 
 
 # ---- voice and AI assistants ------------------------------------------------------------

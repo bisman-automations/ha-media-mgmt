@@ -5,14 +5,32 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
+from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from . import MediaMgmtConfigEntry
+from .const import CONF_ANNOUNCE_PLAYERS
+
+# Picture URLs carry an access token that works until Home Assistant restarts,
+# and announcement speakers are often named after people.
+TO_REDACT = {
+    "access_token",
+    "token",
+    "entity_picture",
+    "entity_picture_local",
+    "media_image_url",
+    "notify",
+    CONF_ANNOUNCE_PLAYERS,
+}
 
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: MediaMgmtConfigEntry
 ) -> dict[str, Any]:
+    return async_redact_data(_diagnostics(hass, entry), TO_REDACT)
+
+
+def _diagnostics(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -> dict[str, Any]:
     manager = entry.runtime_data
     player_state = hass.states.get(manager.entity_id)
     return {

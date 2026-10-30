@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
@@ -21,19 +20,14 @@ class MediaMgmtEntity(Entity):
         entry = manager.entry
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_translation_key = key
-        info: dict = {}
-        # Only older Home Assistant (before 2026.8) shows the profile under the
-        # speaker with via_device. Newer versions link the devices instead, and
-        # warn about via_device even when it's None (removed in 2027.8).
-        if (speaker := _speaker_device(manager)) is not None:
-            info["via_device"] = speaker
+        # The profile's device shares the speaker's identifiers (set in
+        # _link_devices), so they show under each other's Linked devices.
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=f"Media Mgmt — {entry.title}",
             manufacturer="Media Mgmt",
             model="Speaker profile",
             entry_type=DeviceEntryType.SERVICE,
-            **info,
         )
 
     async def _ensure_allowed(self) -> None:
@@ -49,17 +43,3 @@ class MediaMgmtEntity(Entity):
                 self.async_write_ha_state,
             )
         )
-
-
-def _speaker_device(manager: MediaManager) -> tuple[str, str] | None:
-    """Show the profile under the speaker's own device, on older Home Assistant."""
-    hass = manager.hass
-    if hasattr(dr.async_get(hass), "async_get_devices"):
-        return None  # Newer Home Assistant shows them as linked devices instead.
-    entity = er.async_get(hass).async_get(manager.entity_id)
-    if entity is None or entity.device_id is None:
-        return None
-    device = dr.async_get(hass).async_get(entity.device_id)
-    if device is None or not device.identifiers:
-        return None
-    return next(iter(device.identifiers))
