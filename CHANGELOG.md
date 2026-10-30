@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-10-30
+
+### Changed
+
+- **Install from the Marketplace.** The README now explains how to install from the Marketplace that replaces HACS in Home Assistant 2026.11, with its own button. The HACS steps stay for Home Assistant 2026.10 and older, and an install you already have moves over by itself.
+
 ## [1.3.0] - 2026-10-30
 
 ### Changed
@@ -101,6 +107,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
+[1.3.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.0.0...v1.1.0
