@@ -241,6 +241,8 @@ def profile_summary(manager: MediaManager) -> dict[str, Any]:
         "last_blocked": s.last_blocked,
         "last_blocked_at": s.last_blocked_at,
         "plays": s.plays,
+        # When the last song started, so the dashboard can list recent speakers first.
+        "last_played": (last["t"] if (last := manager.activity.last_play) else None),
         "top_artists": _ranked(s.artist_seconds, 5),
         "sleep_until": s.sleep_until,
         "sleep_fade": s.sleep_fade,

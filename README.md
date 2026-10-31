@@ -73,7 +73,7 @@ Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins,
 
 *Screenshots use sample data.*
 
-- **Dashboard.** Every speaker at a glance. Each one starts collapsed to just the player (what's playing, play/pause, skip and volume) with its listening time underneath; tap that line to open the rest. Speakers you open stay open on that device. Opened, a speaker shows:
+- **Dashboard.** Every speaker at a glance. Each one starts collapsed to just the player (what's playing, play/pause, skip and volume) with its listening time underneath; tap that line to open the rest. Speakers you open stay open on that device. Speakers that are playing come first, then the ones played most recently. With two or more speakers, a bar at the top lets you search by speaker name or what's playing, show only some speakers (playing now, played today, not playing, blocked, or can't reach), and sort by name or by most listened today instead. The sort and filter are remembered on that device. Opened, a speaker shows:
   - what's playing, with artwork, progress, play/pause, skip and volume (with the volume cap marked)
   - **Block song** and **Block artist** for whatever's playing
   - listening time used and left, and time from schedules

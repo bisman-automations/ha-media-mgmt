@@ -232,6 +232,20 @@ function describeEvent(e) {
 }
 
 const EXPANDED_KEY = "media-mgmt-expanded";
+const DASH_KEY = "media-mgmt-dashboard";
+const DASH_SORTS = [
+  { id: "activity", label: "Playing, then recent" },
+  { id: "name", label: "Name" },
+  { id: "listened", label: "Most listened today" },
+];
+const DASH_SHOWS = [
+  { id: "all", label: "All speakers" },
+  { id: "playing", label: "Playing now" },
+  { id: "today", label: "Played today" },
+  { id: "quiet", label: "Not playing" },
+  { id: "blocked", label: "Blocked" },
+  { id: "unreachable", label: "Can't reach" },
+];
 
 // Placeholder shaped like what's loading: "cards" (dashboard), "chart" (analytics) or "rows".
 function loading(label, shape = "rows") {
@@ -533,6 +547,8 @@ input[type="number"], input[type="text"], input[type="time"], input[type="search
 textarea { min-height: 90px; resize: vertical; }
 input[type="number"] { width: 130px; }
 .inline { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash-tools { justify-content: flex-start; }
+.dash-tools select { width: auto; }
 .windows { display: grid; gap: 8px; }
 .window { display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center; }
 .window input[type="text"] { min-width: 0; }
@@ -622,6 +638,35 @@ class MediaMgmtPanel extends HTMLElement {
       this._expanded = new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY) || "[]"));
     } catch (err) {
       /* storage unavailable: everything starts collapsed */
+    }
+    // Dashboard sort and filter, remembered on this device; the search isn't.
+    this._dash = { sort: "activity", show: "all", query: "" };
+    try {
+      const saved = JSON.parse(localStorage.getItem(DASH_KEY) || "{}");
+      if (DASH_SORTS.some((o) => o.id === saved.sort)) this._dash.sort = saved.sort;
+      if (DASH_SHOWS.some((o) => o.id === saved.show)) this._dash.show = saved.show;
+    } catch (err) {
+      /* storage unavailable: the defaults */
+    }
+    // When each speaker was last seen playing in this browser, so one that
+    // just stopped moves to "recent" before the next refresh.
+    this._seenPlaying = {};
+    this._playingNow = new Set();
+  }
+
+  // A speaker that was playing and now isn't has just played.
+  _notePlaying() {
+    for (const p of this._profiles || []) {
+      if (this._playerState(p) === "playing") this._playingNow.add(p.entry_id);
+      else if (this._playingNow.delete(p.entry_id)) this._seenPlaying[p.entry_id] = Date.now();
+    }
+  }
+
+  _saveDash() {
+    try {
+      localStorage.setItem(DASH_KEY, JSON.stringify({ sort: this._dash.sort, show: this._dash.show }));
+    } catch (err) {
+      /* not remembered, still works */
     }
   }
 
@@ -963,7 +1008,69 @@ class MediaMgmtPanel extends HTMLElement {
 
   _renderDashboard() {
     const note = this._notes.block ? `<div class="toolbar"><span class="saved" role="status">${esc(this._notes.block)}</span></div>` : "";
-    return `${note}<div class="grid">${this._profiles.map((p) => this._renderSpeaker(p)).join("")}</div>`;
+    this._notePlaying();
+    const shown = this._dashProfiles();
+    this._dashOrder = shown.map((p) => p.entry_id).join(",");
+    const d = this._dash;
+    const toolbar = this._profiles.length > 1
+      ? `<div class="toolbar dash-tools">
+          <div class="search">${icon("search")}<input type="search" id="dash-search" placeholder="Search speakers or what's playing" value="${esc(d.query)}" aria-label="Search speakers" autocomplete="off"></div>
+          <label class="inline">Show <select id="dash-show">${DASH_SHOWS.map((o) => `<option value="${o.id}" ${o.id === d.show ? "selected" : ""}>${o.label}</option>`).join("")}</select></label>
+          <label class="inline">Sort by <select id="dash-sort">${DASH_SORTS.map((o) => `<option value="${o.id}" ${o.id === d.sort ? "selected" : ""}>${o.label}</option>`).join("")}</select></label>
+        </div>`
+      : "";
+    const body = shown.length
+      ? `<div class="grid">${shown.map((p) => this._renderSpeaker(p)).join("")}</div>`
+      : `<div class="empty"><h2>No speakers match</h2><p>${d.query ? "Try another search, or " : ""}<button class="btn" data-dash-reset>Show all speakers</button></p></div>`;
+    return `${note}${toolbar}${body}`;
+  }
+
+  _playerState(p) {
+    const states = this._hass?.states || {};
+    const own = states[p.entity_id]?.state;
+    const twin = p.ma_link?.entity_id ? states[p.ma_link.entity_id]?.state : null;
+    if (own === "playing" || twin === "playing") return "playing";
+    return own;
+  }
+
+  // Newest of: the last song the backend logged, and when this browser last
+  // saw the speaker playing. Infinity while it plays, so playing speakers come
+  // first and sort by name among themselves.
+  _lastPlayed(p) {
+    if (this._playerState(p) === "playing") return Infinity;
+    const logged = p.last_played ? new Date(p.last_played).getTime() : 0;
+    return Math.max(logged || 0, this._seenPlaying[p.entry_id] || 0);
+  }
+
+  _dashProfiles() {
+    const d = this._dash;
+    const query = d.query.toLowerCase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const matches = (p) => {
+      if (!query) return true;
+      const attrs = this._hass?.states?.[p.entity_id]?.attributes || {};
+      return [p.name, attrs.media_title, attrs.media_artist, attrs.media_album_name]
+        .some((v) => v && String(v).toLowerCase().includes(query));
+    };
+    const shows = {
+      all: () => true,
+      playing: (p) => this._playerState(p) === "playing",
+      today: (p) => this._lastPlayed(p) >= today.getTime() || p.used_seconds > 0 || p.schedule_seconds > 0,
+      quiet: (p) => !["playing", "unavailable", "unknown", undefined].includes(this._playerState(p)),
+      blocked: (p) => p.state === "enforcing" || !!p.blocked_by || p.force_block,
+      unreachable: (p) => ["unavailable", "unknown", undefined].includes(this._playerState(p)),
+    };
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    const sorts = {
+      // Infinity - Infinity is NaN, which counts as a tie.
+      activity: (a, b) => this._lastPlayed(b) - this._lastPlayed(a) || byName(a, b),
+      name: byName,
+      listened: (a, b) => (b.used_seconds + b.schedule_seconds) - (a.used_seconds + a.schedule_seconds) || byName(a, b),
+    };
+    return this._profiles
+      .filter((p) => (shows[d.show] || shows.all)(p) && matches(p))
+      .sort(sorts[d.sort] || sorts.activity);
   }
 
   _renderSpeaker(p) {
@@ -1169,6 +1276,15 @@ class MediaMgmtPanel extends HTMLElement {
   _refreshTiles() {
     if (this._tab !== "dashboard" || !this._profiles) return;
     this._npStates = this._npStates || {};
+    this._notePlaying();
+    // Move speakers that started or stopped playing, unless someone is using
+    // a control or typing (it would jump away from under them).
+    const active = this.shadowRoot.activeElement;
+    const busy = active && ["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName);
+    if (!busy && this._dashProfiles().map((p) => p.entry_id).join(",") !== this._dashOrder) {
+      this._render();
+      return;
+    }
     for (const p of this._profiles) {
       const st = this._hass.states[p.entity_id];
       if (st === this._npStates[p.entity_id]) continue;
@@ -2206,6 +2322,12 @@ class MediaMgmtPanel extends HTMLElement {
       this._toggleExpanded(ds.expand);
       return;
     }
+    if ("dashReset" in ds) {
+      this._dash = { ...this._dash, show: "all", query: "" };
+      this._saveDash();
+      this._render();
+      return;
+    }
     if (ds.playValue !== undefined && this._schedEdit) {
       this._schedEdit.play_value = ds.playValue;
       this._render();
@@ -2407,6 +2529,12 @@ class MediaMgmtPanel extends HTMLElement {
   _onChange(ev) {
     const el = ev.target;
     const ds = el.dataset;
+    if (el.id === "dash-sort" || el.id === "dash-show") {
+      this._dash[el.id === "dash-sort" ? "sort" : "show"] = el.value;
+      this._saveDash();
+      this._render();
+      return;
+    }
     if (ds.volume) {
       this._callService("media_player", "volume_set", { entity_id: ds.volume, volume_level: Number(el.value) / 100 });
       return;
@@ -2458,6 +2586,19 @@ class MediaMgmtPanel extends HTMLElement {
 
   _onInput(ev) {
     const el = ev.target;
+    if (el.id === "dash-search") {
+      clearTimeout(this._dashTimer);
+      this._dashTimer = setTimeout(() => {
+        this._dash.query = el.value.trim();
+        this._render();
+        const box = this.shadowRoot.getElementById("dash-search");
+        if (box) {
+          box.focus();
+          box.setSelectionRange(box.value.length, box.value.length);
+        }
+      }, 200);
+      return;
+    }
     if (el.id === "lib-search") {
       clearTimeout(this._searchTimer);
       this._searchTimer = setTimeout(() => {

@@ -22,6 +22,9 @@ async def test_profile_settings_and_schedule(
     profile = res["result"]["profiles"][0]
     assert profile["entity_id"] == SPEAKER
     assert profile["media"]["artist"] == "Brahms"
+    # When the song started, so the dashboard lists recent speakers first.
+    assert profile["last_played"] == (entry.runtime_data.activity.last_play["t"])
+    assert profile["last_played"]
 
     # Played music lists the artist, to pick for a schedule.
     res = await call(type=f"{DOMAIN}/history", entry_id=entry.entry_id, view="artists")
