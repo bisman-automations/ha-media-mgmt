@@ -203,12 +203,30 @@ Admins can always use Media Mgmt. To let someone else in, such as a parent who i
 
 Playing an artist is the exception: `media_mgmt.play_artist`, the voice blueprint, the AI assistant tool, and the **Play artist** select and **Play** buttons work for anyone, like pressing play, and the speaker's rules still decide whether the music plays. Saving, changing and searching artists in the sidebar app needs access.
 
-## Spoken warnings
+## Whole home
 
-Media Mgmt can say "5 minutes of music left" at the warning time, and "The music is stopping now" just before it stops the music. Pick a text-to-speech voice (such as Piper or Google Translate) under **Rules → Spoken warnings**, and where to say it:
+Under **Rules → Whole home**, set limits for all the speakers together: a daily limit, a weekly limit, or both. Each speaker's time is added up, so two speakers playing for an hour count as two hours. Each speaker's own limit still applies, and schedules still play through.
+
+- **When the home's time runs out,** the music stops on every speaker that counts, the same way it stops for a speaker's own limit. Or pick **Only tell me** to just get a notification.
+- **Tell** sends a notification a few minutes before the time runs out (you pick how many), and again when it's used up.
+- **Speakers that count**: untick a speaker to leave it out.
+- **Extra time for the whole home** is on the dashboard, above the speakers, while a home limit is set.
+- 0 is a limit of no time: no music until you give extra time, for example when the kids earn it in [Family](https://github.com/bisman-automations/ha-family).
+
+**Weekly summary.** Pick phones under **Weekly summary**, and every Sunday at 6:00 PM they get each speaker's listening time that week, its top artists, and how many blocked songs started.
+
+## Fading out before it stops
+
+**Rules → Listening time → Fade out before it stops** turns the volume down bit by bit over the last minutes before a quiet window starts or the listening time runs out, so bedtime music fades away instead of stopping suddenly. The volume goes back up after the music stops, ready for next time. Giving extra time during the fade turns the volume straight back up.
+
+## Spoken warnings and Live Activity
+
+Media Mgmt can say "5 minutes of music left" at the warning time, and "The music is stopping now" just before it stops the music. Pick a text-to-speech voice (such as Piper or Google Translate) under **Rules → Warnings**, and where to say it:
 
 - **On the speaker itself,** as an announcement over the music, on speakers that support announcements (Sonos, Google Cast, Music Assistant and others). The music comes back after.
 - **On other speakers,** such as one in the kitchen.
+
+**Live Activity on phones.** Pick phones under **Rules → Warnings**. While music plays, they show how much listening time is left today on the lock screen, counting down by itself. It updates when extra time is given, a warning starts or the time runs out, and goes away a minute after the music stops. It needs the Home Assistant app on iPhone.
 
 ## What you get
 
@@ -239,7 +257,7 @@ All actions take the profile (`profile_id`) to act on, except `play_artist`, whi
 
 | Action | What it does |
 | --- | --- |
-| `media_mgmt.grant_extension` | Add minutes to today's limit (negative to take time away). |
+| `media_mgmt.grant_extension` | Add minutes to today's limit (negative to take time away). Optional `reason`, shown in the activity, and `whole_home: true` to give the whole home the same extra time. |
 | `media_mgmt.force_block` | Stop the music and keep it stopped until unblocked or the day ends. |
 | `media_mgmt.unblock` | Lift `force_block`. |
 | `media_mgmt.reset_usage` | Clear today's listening time, extra time and block. |
@@ -284,6 +302,7 @@ data:
 | `media_mgmt_enforcement_changed` | The enforcement state changed. Includes `state`, `previous_state`, `reason`, `quiet_window` and `schedule`. |
 | `media_mgmt_play` | Someone asked to play an artist. Includes `name`, `ok`, `message`, `reason` (`blocked`, `limit`, `not_found`, `unsupported`, `failed` or `unavailable`), `method` (how it played), `entity_id` (the speaker), `played_on` (the player told to play) and `by`. |
 | `media_mgmt_schedule` | A schedule `started`, `stopped` or `failed`, or a volume limit `limit_started` or `limit_ended`, with `schedule` and `detail`. |
+| `media_mgmt_home_limit` | The whole home's time is almost up (`state: warning`) or used up (`reached`), for the `daily` or `weekly` `period`. Includes `used_minutes`, `limit_minutes`, `remaining_minutes`, `action` and `message`. |
 
 For example, to get a phone notification when blocked music is skipped:
 
@@ -310,10 +329,12 @@ Change these in the sidebar app (**Rules**), or under **Configure** on the profi
 | Quiet windows | none | Times music stays off, e.g. `20:30-07:00 Bedtime, 08:00-15:00 School`. |
 | When music isn't allowed | Pause | Or stop, or turn the speaker off. |
 | Adult mode lasts | 120 min | How long adult mode lifts the rules. |
+| Fade out before it stops | 0 (off) | See [Fading out before it stops](#fading-out-before-it-stops). |
 | Blocked songs, artists, albums, apps, words | none | See [Blocked music](#blocked-music). |
 | When blocked music plays | Skip to the next song | Or pause, or stop. |
 | Maximum volume | 100% (no cap) | Turned back down above this. |
-| Voice, say it on this speaker, also say it on | none | See [Spoken warnings](#spoken-warnings). |
+| Voice, say it on this speaker, also say it on | none | See [Spoken warnings and Live Activity](#spoken-warnings-and-live-activity). |
+| Live Activity on phones | none | See [Spoken warnings and Live Activity](#spoken-warnings-and-live-activity). |
 | Music Assistant player | found automatically | See [How it plays](#how-it-plays). |
 
 ## Troubleshooting

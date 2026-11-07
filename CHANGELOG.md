@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-11-07
+
+### Added
+
+- **Whole home.** Under **Rules → Whole home**, set a daily or weekly limit for all the speakers together, the same way TV Mgmt does for TVs. Two speakers playing for an hour count as two hours. When the home's time runs out, the music stops on every speaker that counts, or you're only told, as you pick. You get a notification a few minutes before and when it's used up, and the dashboard shows the home's time with buttons for extra time. New event: `media_mgmt_home_limit`.
+- **Weekly summary.** Pick phones, and every Sunday at 6:00 PM they get each speaker's listening time that week, its top artists and how many blocked songs started.
+- **Fade out before it stops.** A new setting under **Listening time**: over the last few minutes before a quiet window starts or the listening time runs out, the volume goes down bit by bit, so the music fades away instead of stopping suddenly. The volume goes back up afterwards, and straight away if extra time is given.
+- **Live Activity on phones.** Under **Rules → Warnings**, pick phones that show how much listening time is left while music plays, counting down on the lock screen. It updates when extra time is given or the time runs out, and goes away a minute after the music stops. Needs the Home Assistant app on iPhone.
+- **Why extra time was given.** `media_mgmt.grant_extension` takes an optional `reason`, shown in the activity, such as a chore reward from [Family](https://github.com/bisman-automations/ha-family). It also takes `whole_home: true` to give the whole home the same time. Extra time given from the sidebar app shows who gave it.
+
+### Changed
+
+- **Spoken warnings** is now called **Warnings** in the sidebar app and in the settings, since it also has the Live Activity.
+- Test tools: ruff 0.17.3.
+
 ## [1.4.0] - 2026-10-31
 
 ### Added
@@ -118,6 +133,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
+[1.5.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.2.0...v1.3.0

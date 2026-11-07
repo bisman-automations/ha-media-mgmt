@@ -33,7 +33,10 @@ EV_STOPPED = "stopped"  # reason, action: Media Mgmt stopped the music
 EV_MODE = "mode"  # mode
 EV_FILTER = "filter"  # on: music filter switched
 EV_ADULT_MODE = "adult_mode"  # on, minutes
-EV_EXTENSION = "extension"  # minutes
+EV_EXTENSION = "extension"  # minutes, by, reason
+EV_HOME_EXTENSION = (
+    "home_extension"  # minutes, by, reason: extra time for the whole home
+)
 EV_BLOCK = "block"  # Stop music now
 EV_UNBLOCK = "unblock"
 EV_RESET = "reset"
@@ -55,6 +58,7 @@ EVENT_TYPES = [
     EV_FILTER,
     EV_ADULT_MODE,
     EV_EXTENSION,
+    EV_HOME_EXTENSION,
     EV_BLOCK,
     EV_UNBLOCK,
     EV_RESET,

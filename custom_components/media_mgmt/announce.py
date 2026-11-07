@@ -15,7 +15,13 @@ from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 
-from .state import REASON_BUDGET, REASON_MANUAL, REASON_QUIET
+from .state import (
+    REASON_BUDGET,
+    REASON_HOME_DAILY,
+    REASON_HOME_WEEKLY,
+    REASON_MANUAL,
+    REASON_QUIET,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +33,10 @@ def warning_message(minutes: int) -> str:
 def stopping_message(reason: str | None, window: str | None = None) -> str:
     if reason == REASON_BUDGET:
         return "Music time is up for today. The music is stopping now."
+    if reason == REASON_HOME_DAILY:
+        return "The home's music time is up for today. The music is stopping now."
+    if reason == REASON_HOME_WEEKLY:
+        return "The home's music time is up for this week. The music is stopping now."
     if reason == REASON_QUIET:
         return (
             f"It's {window.lower()} time. The music is stopping now."

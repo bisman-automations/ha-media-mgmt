@@ -24,6 +24,8 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     ATTR_MINUTES,
     ATTR_PROFILE_ID,
+    ATTR_REASON,
+    ATTR_WHOLE_HOME,
     BLOCK_KINDS,
     DOMAIN,
     SERVICE_BLOCK_MEDIA,
@@ -52,7 +54,15 @@ type MediaMgmtConfigEntry = ConfigEntry[MediaManager]
 
 PROFILE_SCHEMA = vol.Schema({vol.Required(ATTR_PROFILE_ID): cv.string})
 EXTENSION_SCHEMA = PROFILE_SCHEMA.extend(
-    {vol.Required(ATTR_MINUTES): vol.All(vol.Coerce(int), vol.Range(min=-240, max=240))}
+    {
+        vol.Required(ATTR_MINUTES): vol.All(
+            vol.Coerce(int), vol.Range(min=-240, max=240)
+        ),
+        # Give the whole home the same extra time too.
+        vol.Optional(ATTR_WHOLE_HOME, default=False): cv.boolean,
+        # Why, shown in the Activity ("Alex's reward: music time").
+        vol.Optional(ATTR_REASON): vol.All(cv.string, vol.Length(max=100)),
+    }
 )
 BLOCK_SCHEMA = vol.All(
     PROFILE_SCHEMA.extend(
@@ -113,11 +123,13 @@ PLAY_ARTIST_SCHEMA = vol.Schema(
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     from . import websocket
     from .access import async_get_access
+    from .home_limits import async_get_home
     from .intent import async_setup_intents
     from .panel import async_register_panel
     from .saved import async_load_saved
 
     await async_get_access(hass)
+    await async_get_home(hass)
     await async_load_saved(hass)
     _register_services(hass)
     websocket.async_register(hass)
@@ -260,7 +272,14 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def grant_extension(call: ServiceCall) -> None:
         await async_ensure_allowed(hass, call.context)
-        _manager(hass, call).grant_extension(call.data[ATTR_MINUTES])
+        reason = (call.data.get(ATTR_REASON) or "").strip() or None
+        by = await _user_name(hass, call)
+        _manager(hass, call).grant_extension(call.data[ATTR_MINUTES], reason, by)
+        if call.data[ATTR_WHOLE_HOME]:
+            from .home_limits import get_home
+
+            if (home := get_home(hass)) is not None:
+                home.grant_extension(call.data[ATTR_MINUTES], by=by, reason=reason)
 
     async def block_media(call: ServiceCall) -> None:
         await async_ensure_allowed(hass, call.context)

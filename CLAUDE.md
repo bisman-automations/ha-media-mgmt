@@ -12,7 +12,9 @@ The sidebar app is the product. Every setting must be manageable there, not only
 | `player.py` | Reads the speaker's state and sends it commands, with fallbacks (skip → pause → stop → turn off) for what the speaker supports. |
 | `ma_link.py`, `playback.py` | Finds the speaker's Music Assistant player (`resolve`), and plays an artist, album, song or playlist through it or the fallbacks. While the Music Assistant player plays, `player.target` is that player and every read and command goes to it. |
 | `targets.py`, `saved.py`, `intent.py`, `llm.py` | Playing an artist on request: which speaker (`find_speaker`), the home's saved artists, the `MediaMgmtPlayArtist` intent and the AI assistant tool. `blueprints/automation/media_mgmt/play_artist.yaml` is the text and voice blueprint. |
-| `state.py`, `quiet.py`, `schedules.py`, `filters.py`, `media.py`, `activity.py`, `artists.py` | **Pure modules: no Home Assistant imports.** Unit-tested standalone through `tests/conftest.py`. Keep them pure. |
+| `state.py`, `quiet.py`, `schedules.py`, `filters.py`, `media.py`, `activity.py`, `artists.py`, `home.py`, `live_view.py` | **Pure modules: no Home Assistant imports.** Unit-tested standalone through `tests/conftest.py`. Keep them pure. |
+| `home_limits.py` | `HomeLimits`: the whole home's limits and weekly summary, one for all speakers (stored in `media_mgmt.home`, not in any config entry), ported from TV Mgmt. Adds up each counted speaker's `used_seconds`, gives each speaker the home's time left (`decide(home_remaining=...)`), notifies, and makes every speaker re-decide when the home's time runs out. The Sunday 18:00 summary listener runs only while a speaker is registered, so tests don't leave a timer. |
+| `live_activity.py` | A speaker's Live Activity on phones (`CONF_LIVE_ACTIVITY`, in the announcements section), ported from TV Mgmt: shown while music plays, pushed only when `live_view` changes, "Music off" then cleared a minute after the music stops. `manager.notify()` calls `refresh()`. |
 | `storage.py` | `ProfileState` (today's counters and controls), the activity log, and schedules, each in its own `Store`. |
 | `websocket.py` | The sidebar app's API (`media_mgmt/*` commands). |
 | `frontend/media-mgmt-panel.js` | The sidebar app: one plain web component, **no build step**. |
@@ -23,6 +25,7 @@ The sidebar app is the product. Every setting must be manageable there, not only
 
 ## Rules that keep it working
 
+- **Bedtime fade** (`CONF_BEDTIME_FADE`, minutes): `_check_bedtime_fade` starts a fade (`reason: bedtime`) when `seconds_until_stop()` (quiet window start or listening time left) is within it, stops fading once the music is blocked and restores the volume after the stop (`_async_stop_music`), and cancels with the volume restored when extra time pushes the stop back.
 - **Settings apply live, without reloading.** The update listener calls `MediaManager.apply_options()`. Don't reload the entry in the listener, and never pair an update listener with reloading methods in a config flow (`async_update_reload_and_abort`, or `_abort_if_unique_id_configured(updates=...)`): that's an error from Home Assistant 2026.12.
 - **Schedules live in their own `Store`, not in options**, so editing them never touches the config entry.
 - **Stored data must stay backward compatible.** New `ProfileState` fields need defaults, since unknown keys are dropped on load. New schedule fields must default so that schedules saved by older versions load unchanged (`load_schedules` skips anything that no longer validates, which would silently delete a user's schedule).

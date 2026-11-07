@@ -30,6 +30,11 @@ DEFAULT_DAILY_BUDGET = 0
 DEFAULT_WARN_MINUTES = 5
 DEFAULT_QUIET_WINDOWS = ""
 DEFAULT_ADULT_MODE_DURATION = 120
+# Turn the volume down over these minutes before quiet time starts or the
+# listening time runs out, so the music fades away instead of stopping.
+CONF_BEDTIME_FADE = "bedtime_fade"  # minutes, 0 = off
+DEFAULT_BEDTIME_FADE = 0
+MAX_BEDTIME_FADE = 30
 
 # What Media Mgmt does to the speaker
 ACTION_SKIP = "skip"
@@ -64,6 +69,8 @@ DEFAULT_MAX_VOLUME = 100
 CONF_ANNOUNCE_TTS = "announce_tts"
 CONF_ANNOUNCE_ON_PLAYER = "announce_on_player"
 CONF_ANNOUNCE_PLAYERS = "announce_players"
+# Phones (notify services) that show a Live Activity while music plays
+CONF_LIVE_ACTIVITY = "live_activity"
 ANNOUNCE_GRACE = 8  # seconds between "the music is stopping" and stopping it
 
 # How often listening is counted and timers, schedules and fades are checked.
@@ -91,6 +98,8 @@ SERVICE_RUN_SCHEDULE = "run_schedule"
 SERVICE_PLAY_ARTIST = "play_artist"
 ATTR_PROFILE_ID = "profile_id"
 ATTR_MINUTES = "minutes"
+ATTR_REASON = "reason"
+ATTR_WHOLE_HOME = "whole_home"
 
 # Events
 EVENT_MEDIA_BLOCKED = f"{DOMAIN}_media_blocked"
@@ -98,6 +107,7 @@ EVENT_ENFORCEMENT_CHANGED = f"{DOMAIN}_enforcement_changed"
 EVENT_WARNING = f"{DOMAIN}_warning"
 EVENT_SCHEDULE = f"{DOMAIN}_schedule"
 EVENT_PLAY = f"{DOMAIN}_play"
+EVENT_HOME_LIMIT = f"{DOMAIN}_home_limit"
 
 # Voice and AI assistants: "play Brahms in the kids room"
 INTENT_PLAY_ARTIST = "MediaMgmtPlayArtist"

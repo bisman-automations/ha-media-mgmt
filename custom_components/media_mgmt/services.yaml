@@ -13,6 +13,13 @@ grant_extension:
           max: 240
           step: 5
           unit_of_measurement: min
+    whole_home:
+      default: false
+      selector:
+        boolean:
+    reason:
+      selector:
+        text:
 force_block:
   fields:
     profile_id:

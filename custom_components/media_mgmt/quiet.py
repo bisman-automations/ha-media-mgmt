@@ -66,3 +66,19 @@ def parse_windows(raw: str | None) -> list[QuietWindow]:
 
 def active_window(windows: list[QuietWindow], t: time) -> QuietWindow | None:
     return next((w for w in windows if w.contains(t)), None)
+
+
+def seconds_until_quiet(windows: list[QuietWindow], t: time) -> int | None:
+    """Seconds from `t` until the next quiet window starts, or None with no windows.
+
+    A window that's already on counts as starting now (0).
+    """
+    if active_window(windows, t):
+        return 0
+    now = t.hour * 3600 + t.minute * 60 + t.second
+    starts = [
+        (w.start.hour * 3600 + w.start.minute * 60 - now) % 86400
+        for w in windows
+        if w.start != w.end
+    ]
+    return min(starts) if starts else None

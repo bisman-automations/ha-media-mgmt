@@ -150,7 +150,7 @@ const trackEntry = (title, artist) => (artist ? `${title}${SEP}${artist}` : titl
 function stateInfo(p) {
   switch (p.state) {
     case "enforcing": {
-      const why = { budget: "Daily limit reached", quiet_window: p.quiet_window || "Quiet window", manual: "Blocked by a parent" }[p.reason];
+      const why = { budget: "Daily limit reached", home_daily: "Home's daily time used", home_weekly: "Home's weekly time used", quiet_window: p.quiet_window || "Quiet window", manual: "Blocked by a parent" }[p.reason];
       return { tone: "bad", text: why || "Blocked" };
     }
     case "warning":
@@ -191,12 +191,12 @@ function describeEvent(e) {
     case "enforcement": {
       const text =
         e.state === "enforcing"
-          ? { budget: "Daily limit reached", quiet_window: `Quiet window started${e.quiet_window ? `: ${e.quiet_window}` : ""}`, manual: "Blocked by a parent" }[e.reason] || "Blocked"
+          ? { budget: "Daily limit reached", home_daily: "The whole home's music time for today is used up", home_weekly: "The whole home's music time for this week is used up", quiet_window: `Quiet window started${e.quiet_window ? `: ${e.quiet_window}` : ""}`, manual: "Blocked by a parent" }[e.reason] || "Blocked"
           : { warning: "Listening time is almost up", ok: "Allowed to listen again", paused: "Rules paused", adult_mode: "Adult mode started", schedule: `${e.schedule || "Schedule"} lifted the limits` }[e.state] || e.state;
       return { icon: "clock", tone: e.state === "enforcing" ? "bad" : e.state === "warning" ? "warn" : undefined, text };
     }
     case "stopped": {
-      const why = { budget: "the daily limit", quiet_window: "a quiet window", manual: "a parent's block", sleep_timer: "the sleep timer", schedule: "a schedule" }[e.reason] || e.reason;
+      const why = { budget: "the daily limit", home_daily: "the whole home's daily limit", home_weekly: "the whole home's weekly limit", quiet_window: "a quiet window", manual: "a parent's block", sleep_timer: "the sleep timer", schedule: "a schedule" }[e.reason] || e.reason;
       return { icon: "stop", tone: "bad", text: `Media Mgmt ${e.action === "turn_off" ? "turned the speaker off" : e.action === "stop" ? "stopped the music" : "paused the music"} for ${why}` };
     }
     case "mode":
@@ -206,7 +206,9 @@ function describeEvent(e) {
     case "adult_mode":
       return { icon: "adult", text: e.on ? `Adult mode on for ${e.minutes} min` : "Adult mode turned off" };
     case "extension":
-      return { icon: "plus", text: e.minutes >= 0 ? `${e.minutes} min of extra time added` : `${-e.minutes} min taken away` };
+      return { icon: "plus", text: `${e.minutes >= 0 ? `${e.minutes} min of extra time added` : `${-e.minutes} min taken away`}${e.reason ? ` (${e.reason})` : ""}${by}` };
+    case "home_extension":
+      return { icon: "plus", text: `${e.minutes >= 0 ? `${e.minutes} min of extra time for the whole home` : `${-e.minutes} min taken from the whole home`}${e.reason ? ` (${e.reason})` : ""}${by}` };
     case "block":
       return { icon: "stop", tone: "bad", text: "Blocked now" };
     case "unblock":
@@ -224,7 +226,7 @@ function describeEvent(e) {
     case "sleep":
       return {
         icon: "sleep",
-        text: e.action === "set" ? `Sleep timer set for ${e.minutes} min${e.fade ? `, fading out over the last ${e.fade}` : ""}${by}` : e.action === "cancelled" ? `Sleep timer cancelled${by}` : "Sleep timer ended",
+        text: e.action === "set" ? `Sleep timer set for ${e.minutes} min${e.fade ? `, fading out over the last ${e.fade}` : ""}${by}` : e.action === "cancelled" ? `Sleep timer cancelled${by}` : e.action === "bedtime_fade" ? `Fading out: the music stops in ${e.minutes} min` : "Sleep timer ended",
       };
     default:
       return { icon: "clock", text: e.type };
@@ -416,6 +418,10 @@ small.muted { font-size: 13px; }
 
 .time-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .time-line strong { font-size: 22px; font-weight: 500; }
+.home-strip { margin-bottom: 16px; }
+.home-row { margin-top: 10px; }
+.home-row .time-line { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.home-extra { margin-top: 12px; align-items: center; }
 .meter { height: 8px; border-radius: 4px; background: var(--divider-color); overflow: hidden; margin-top: 8px; }
 .meter > div { height: 100%; background: var(--mm-tone, var(--primary-color)); border-radius: 4px; }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; margin: 0; }
@@ -792,6 +798,7 @@ class MediaMgmtPanel extends HTMLElement {
     try {
       const res = await this._ws({ type: "media_mgmt/profiles" });
       this._profiles = res.profiles;
+      this._home = res.home || null;
       if (!this._selected || !this._profiles.some((p) => p.entry_id === this._selected)) {
         this._selected = this._profiles[0]?.entry_id ?? null;
       }
@@ -1022,7 +1029,147 @@ class MediaMgmtPanel extends HTMLElement {
     const body = shown.length
       ? `<div class="grid">${shown.map((p) => this._renderSpeaker(p)).join("")}</div>`
       : `<div class="empty"><h2>No speakers match</h2><p>${d.query ? "Try another search, or " : ""}<button class="btn" data-dash-reset>Show all speakers</button></p></div>`;
-    return `${note}${toolbar}${body}`;
+    return `${note}${this._renderHomeStrip()}${toolbar}${body}`;
+  }
+
+  // The whole home's music time, above the speakers, when a home limit is set.
+  _renderHomeStrip() {
+    const h = this._home;
+    if (!h?.active) return "";
+    const bar = (label, used, limitMin, left) => {
+      // null: no limit. 0 is a limit too: no time without extra time.
+      if (limitMin == null) return "";
+      const total = limitMin * 60;
+      const pct = total ? Math.min(100, (used / total) * 100) : 100;
+      const tone = left <= 0 ? "bad" : left <= (h.warn_minutes || 0) * 60 ? "warn" : "info";
+      return `<div class="home-row">
+        <div class="time-line"><span><strong>${duration(used)}</strong> <span class="muted">of ${duration(total)} ${label}</span></span>
+          <span class="muted">${left > 0 ? `${duration(left)} left` : "No time left"}</span></div>
+        <div class="meter tone-${tone}" role="progressbar" aria-valuemin="0" aria-valuemax="${limitMin}" aria-valuenow="${minutes(used)}" aria-label="Whole home, ${label}"><div style="width:${pct}%"></div></div>
+      </div>`;
+    };
+    const today = h.daily_minutes != null ? h.daily_minutes + h.extension_minutes : null;
+    const week = h.weekly_minutes != null ? h.weekly_minutes + (h.extension_week_minutes || 0) : null;
+    return `<section class="card home-strip" aria-label="Whole home">
+      <div class="card-body">
+        <div class="card-head"><h2>Whole home</h2><button class="btn small" data-tab="rules">Change</button></div>
+        ${bar("today", h.today_seconds, today, h.daily_remaining)}
+        ${bar("this week", h.week_seconds, week, h.weekly_remaining)}
+        ${h.action === "notify" ? `<small class="muted">When it runs out, the people picked are told. The music keeps playing.</small>` : ""}
+        <div class="row home-extra">
+          <span class="label">Extra time for the whole home today${h.extension_minutes ? ` (${h.extension_minutes > 0 ? "+" : ""}${h.extension_minutes} min so far)` : ""}</span>
+          <button class="btn" data-home-extra="-15">−15 min</button>
+          <button class="btn" data-home-extra="15">+15 min</button>
+          <button class="btn" data-home-extra="30">+30 min</button>
+          <button class="btn" data-home-extra="60">+1 h</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  async _homeExtra(minutes) {
+    try {
+      const res = await this._ws({ type: "media_mgmt/home/extension", minutes });
+      this._home = res.home;
+      this._error = null;
+      await this._loadProfiles({ quiet: true });
+    } catch (err) {
+      this._error = this._errorText(err);
+    }
+    this._render();
+  }
+
+  // The whole home's limits and weekly summary, at the top of Rules.
+  _renderHomeLimits() {
+    const e = this._homeEdit;
+    if (!e) {
+      if (!this._loadingHome) {
+        this._loadingHome = true;
+        this._ws({ type: "media_mgmt/home/get" })
+          .then((res) => (this._homeEdit = res))
+          .catch((err) => (this._error = this._errorText(err)))
+          .finally(() => {
+            this._loadingHome = false;
+            this._render();
+          });
+      }
+      return loading("Loading the whole home…");
+    }
+    const h = e.home;
+    const hours = h.weekly_minutes != null ? +(h.weekly_minutes / 60).toFixed(2) : "";
+    const radio = (name, value, label, checked) =>
+      `<label class="radio"><input type="radio" name="${name}" value="${value}" ${checked ? "checked" : ""}> ${label}</label>`;
+    const targetName = (t) => esc(t.replace(/^notify\./, "").replace(/^mobile_app_/, "").replace(/_/g, " "));
+    const targets = (attr, picked) =>
+      e.notify_targets.length
+        ? `<div class="speakers-pick">${e.notify_targets
+            .map((t) => `<label class="radio"><input type="checkbox" class="check" ${attr}="${esc(t)}" ${picked.includes(t) ? "checked" : ""}> ${targetName(t)}</label>`)
+            .join("")}</div>`
+        : `<small>Nothing to send to yet. Set up the Home Assistant app on a phone, or another notify integration.</small>`;
+    const speakers = e.speakers
+      .map((s) => `<label class="radio"><input type="checkbox" class="check" data-home-speaker="${esc(s.entry_id)}" ${h.excluded.includes(s.entry_id) ? "" : "checked"}> ${esc(s.name)}</label>`)
+      .join("");
+    return `<section class="card home-limits"><div class="card-body">
+      <div class="card-head"><h2>Whole home</h2></div>
+      <form id="home" novalidate>
+        <p class="muted" style="margin:0">Limits for all the speakers together. Each speaker's time is added up, so two speakers playing for an hour count as two hours. Each speaker's own limit still applies too, and schedules still play through.</p>
+        <div class="form-grid">
+          <div class="field"><label for="home-daily">Daily music time for the home</label>
+            <span class="inline"><input id="home-daily" type="number" min="0" max="1440" step="5" value="${h.daily_minutes ?? ""}" placeholder="No limit"> minutes</span>
+            <small>Empty for no daily limit. 0 means no music until you give extra time.</small></div>
+          <div class="field"><label for="home-weekly">Weekly music time for the home</label>
+            <span class="inline"><input id="home-weekly" type="number" min="0" max="168" step="0.5" value="${hours}" placeholder="No limit"> hours</span>
+            <div class="row">${radio("home-week", "monday", "Weeks start on Monday", h.week_start === "monday")}${radio("home-week", "sunday", "Sunday", h.week_start === "sunday")}</div></div>
+          <div class="field"><label for="home-warn">Tell me before it runs out</label>
+            <span class="inline"><input id="home-warn" type="number" min="0" max="120" value="${h.warn_minutes}"> minutes before</span></div>
+        </div>
+        <div class="field"><span class="label">When the home's time runs out</span>
+          <div class="row">${radio("home-action", "stop", "Stop the music, like each speaker's own limit", h.action === "stop")}${radio("home-action", "notify", "Only tell me", h.action === "notify")}</div></div>
+        <div class="field"><span class="label">Tell</span>${targets("data-home-notify", h.notify)}</div>
+        <div class="field"><span class="label">Speakers that count</span>
+          <div class="speakers-pick">${speakers || `<span class="muted">No speakers yet.</span>`}</div>
+          <small>A speaker that's left out isn't counted or stopped by the home's limit.</small></div>
+        <div class="field"><span class="label">Weekly summary</span>
+          <small>Every Sunday at 6:00 PM: each speaker's listening time this week, its top artists and how many songs were blocked.</small>
+          ${targets("data-home-summary", h.summary || [])}</div>
+        <div class="form-actions"><button type="submit" class="btn primary" ${this._busyHome ? "disabled" : ""}>${this._busyHome ? "Saving…" : "Save whole home"}</button>${this._note("home")}</div>
+      </form>
+    </div></section>`;
+  }
+
+  async _saveHome() {
+    const root = this.shadowRoot;
+    const optional = (id) => (root.getElementById(id).value.trim() === "" ? null : Number(root.getElementById(id).value));
+    const daily = optional("home-daily");
+    const weeklyHours = optional("home-weekly");
+    const warn = Number(root.getElementById("home-warn").value || 0);
+    if (daily != null && (!Number.isInteger(daily) || daily < 0 || daily > 1440)) return this._showError("Daily music time for the home needs a whole number of minutes from 0 to 1440, or empty for no limit.");
+    if (weeklyHours != null && (Number.isNaN(weeklyHours) || weeklyHours < 0 || weeklyHours > 168)) return this._showError("Weekly music time for the home needs a number of hours from 0 to 168, or empty for no limit.");
+    if (!Number.isInteger(warn) || warn < 0 || warn > 120) return this._showError("Tell me before it runs out needs a whole number of minutes from 0 to 120.");
+    const checked = (attr, key) => [...root.querySelectorAll(`[${attr}]`)].filter((el) => el.checked).map((el) => el.dataset[key]);
+    const msg = {
+      type: "media_mgmt/home/set",
+      daily_minutes: daily,
+      weekly_minutes: weeklyHours == null ? null : Math.round(weeklyHours * 60),
+      week_start: root.querySelector('input[name="home-week"]:checked')?.value || "monday",
+      warn_minutes: warn,
+      action: root.querySelector('input[name="home-action"]:checked')?.value || "stop",
+      notify: checked("data-home-notify", "homeNotify"),
+      excluded: [...root.querySelectorAll("[data-home-speaker]")].filter((el) => !el.checked).map((el) => el.dataset.homeSpeaker),
+      summary: checked("data-home-summary", "homeSummary"),
+    };
+    this._busyHome = true;
+    this._error = null;
+    this._render();
+    try {
+      this._homeEdit = await this._ws(msg);
+      this._home = this._homeEdit.home;
+      this._notes.home = "Saved";
+    } catch (err) {
+      this._error = this._errorText(err);
+    }
+    this._busyHome = false;
+    this._render();
   }
 
   _playerState(p) {
@@ -2060,6 +2207,9 @@ class MediaMgmtPanel extends HTMLElement {
             <small>Said on the speaker if spoken warnings are set up, and fires media_mgmt_warning.</small></div>
           <div class="field"><label for="adult_mode_duration">Adult mode lasts</label>
             <span class="inline"><input id="adult_mode_duration" type="number" min="5" max="720" step="5" value="${d.adult_mode_duration}"> minutes</span></div>
+          <div class="field"><label for="bedtime_fade">Fade out before it stops</label>
+            <span class="inline"><input id="bedtime_fade" type="number" min="0" max="30" value="${d.bedtime_fade ?? 0}"> minutes</span>
+            <small>Turns the volume down bit by bit before a quiet window starts or the listening time runs out, so the music fades away. 0 turns it off.</small></div>
         </div>
         <div class="field"><span class="label">Quiet windows</span>
           <small>Times music stays off, like bedtime or school hours. A window can run past midnight. Schedules can still play during them.</small>
@@ -2106,8 +2256,11 @@ class MediaMgmtPanel extends HTMLElement {
       </form></div></section>`;
 
     const speakers = (d.speakers || []).filter((s) => s.entity_id !== this._profile?.entity_id);
+    const pickedPhones = d.live_activity || [];
+    const phones = [...(d.phones || [])];
+    for (const service of pickedPhones) if (!phones.some((x) => x.service === service)) phones.push({ service, name: service });
     const warnings = `<section class="card"><div class="card-body">
-      <div class="card-head"><h2>Spoken warnings</h2></div>
+      <div class="card-head"><h2>Warnings</h2></div>
       <form id="warnings" novalidate>
         <p class="muted" style="margin:0">Say “5 minutes of music left” when time is running low, and “the music is stopping now” just before it stops.</p>
         <div class="field"><label for="announce_tts">Voice</label>
@@ -2116,6 +2269,9 @@ class MediaMgmtPanel extends HTMLElement {
         <label class="radio"><input type="checkbox" class="check" id="announce_on_player" ${d.announce_on_player ? "checked" : ""} ${d.capabilities?.announce ? "" : "disabled"}> Say it on this speaker, over the music${d.capabilities?.announce ? "" : " (this speaker can't make announcements)"}</label>
         <div class="field"><span class="label">Also say it on</span>
           <div class="speakers-pick">${speakers.map((s) => `<label class="radio"><input type="checkbox" class="check" data-announce-player="${esc(s.entity_id)}" ${(d.announce_players || []).includes(s.entity_id) ? "checked" : ""}> ${esc(s.name)}${speakers.filter((x) => x.name === s.name).length > 1 ? ` <small class="muted">${esc(s.entity_id)}</small>` : ""}</label>`).join("") || `<span class="muted">No other speakers.</span>`}</div></div>
+        <div class="field"><span class="label">Live Activity on phones</span>
+          <small>While music plays, these phones show how much listening time is left today, counting down. It updates when extra time is given or the time runs out, and goes away a minute after the music stops. Needs the Home Assistant app on iPhone.</small>
+          <div class="speakers-pick">${phones.map((x) => `<label class="radio"><input type="checkbox" class="check" data-phone="${esc(x.service)}" ${pickedPhones.includes(x.service) ? "checked" : ""}> ${esc(x.name)}</label>`).join("") || `<span class="muted">No phones with the Home Assistant app yet.</span>`}</div></div>
         <div class="form-actions"><button type="submit" class="btn primary">Save warnings</button>${this._note("warnings")}</div>
       </form></div></section>`;
 
@@ -2133,13 +2289,13 @@ class MediaMgmtPanel extends HTMLElement {
         <div class="form-actions"><button type="submit" class="btn primary" ${players.length ? "" : "disabled"}>Save</button>${this._note("ma_player")}</div>
       </form></div></section>`;
 
-    return `<div class="toolbar">${this._picker()}</div><div class="stack">${listening}${filter}${volume}${warnings}${ma}</div>`;
+    return `<div class="stack">${this._renderHomeLimits()}<div><div class="toolbar">${this._picker()}</div><div class="stack">${listening}${filter}${volume}${warnings}${ma}</div></div></div>`;
   }
 
   _syncRules() {
     const root = this.shadowRoot;
     const d = this._draft;
-    for (const key of ["daily_budget", "warn_minutes", "adult_mode_duration", "max_volume"]) {
+    for (const key of ["daily_budget", "warn_minutes", "adult_mode_duration", "bedtime_fade", "max_volume"]) {
       const el = root.getElementById(key);
       if (el) d[key] = el.value;
     }
@@ -2154,6 +2310,8 @@ class MediaMgmtPanel extends HTMLElement {
     if (onp) d.announce_on_player = onp.checked;
     const players = root.querySelectorAll("[data-announce-player]");
     if (players.length) d.announce_players = [...players].filter((el) => el.checked).map((el) => el.dataset.announcePlayer);
+    const phones = root.querySelectorAll("[data-phone]");
+    if (phones.length) d.live_activity = [...phones].filter((el) => el.checked).map((el) => el.dataset.phone);
   }
 
   async _saveSettings(note, payload) {
@@ -2313,6 +2471,7 @@ class MediaMgmtPanel extends HTMLElement {
       if (ds.tab === "rules") {
         this._draft = null;
         this._settings = null;
+        this._homeEdit = null;
       }
       if (ds.tab !== "schedules") this._schedEdit = null;
       this._render();
@@ -2320,6 +2479,10 @@ class MediaMgmtPanel extends HTMLElement {
     }
     if (ds.expand) {
       this._toggleExpanded(ds.expand);
+      return;
+    }
+    if (ds.homeExtra) {
+      this._homeExtra(Number(ds.homeExtra));
       return;
     }
     if ("dashReset" in ds) {
@@ -2646,6 +2809,7 @@ class MediaMgmtPanel extends HTMLElement {
       this._syncRules();
       return this._block(this._selected, kind, value, true);
     }
+    if (form.id === "home") return this._saveHome();
     this._syncRules();
     const d = this._draft;
     if (form.id === "listening") {
@@ -2654,6 +2818,7 @@ class MediaMgmtPanel extends HTMLElement {
         ["daily_budget", "Daily listening time", 0, 1440],
         ["warn_minutes", "Warn before time runs out", 0, 60],
         ["adult_mode_duration", "Adult mode lasts", 5, 720],
+        ["bedtime_fade", "Fade out before it stops", 0, 30],
       ]) {
         const value = Number(d[key]);
         if (!Number.isInteger(value) || value < min || value > max) return this._showError(`${label} needs a whole number of minutes from ${min} to ${max}.`);
@@ -2667,7 +2832,7 @@ class MediaMgmtPanel extends HTMLElement {
     if (form.id === "filter-action") return this._saveSettings("filter_action", { filter_action: d.filter_action });
     if (form.id === "volume") return this._saveSettings("volume", { max_volume: Number(d.max_volume) });
     if (form.id === "warnings") {
-      return this._saveSettings("warnings", { announce_tts: d.announce_tts || null, announce_on_player: !!d.announce_on_player, announce_players: d.announce_players || [] });
+      return this._saveSettings("warnings", { announce_tts: d.announce_tts || null, announce_on_player: !!d.announce_on_player, announce_players: d.announce_players || [], live_activity: d.live_activity || [] });
     }
   }
 }

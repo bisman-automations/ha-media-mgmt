@@ -29,9 +29,11 @@ from .const import (
     CONF_ANNOUNCE_ON_PLAYER,
     CONF_ANNOUNCE_PLAYERS,
     CONF_ANNOUNCE_TTS,
+    CONF_BEDTIME_FADE,
     CONF_DAILY_BUDGET,
     CONF_FILTER_ACTION,
     CONF_LIMIT_ACTION,
+    CONF_LIVE_ACTIVITY,
     CONF_MA_PLAYER,
     CONF_MAX_VOLUME,
     CONF_QUIET_WINDOWS,
@@ -39,6 +41,7 @@ from .const import (
     DOMAIN,
     FILTER_ACTIONS,
     LIMIT_ACTIONS,
+    MAX_BEDTIME_FADE,
     SECTION_ANNOUNCE,
     SECTION_FILTER,
     SECTION_LISTENING,
@@ -48,6 +51,9 @@ from .const import (
     SIGNAL_ARTISTS_UPDATED,
 )
 from .filters import clean_list
+from .home import ACTIONS as HOME_ACTIONS, WEEK_STARTS, HomeSettings
+from .home_limits import get_home, notify_targets
+from .live_activity import phone_targets
 from .manager import MediaManager
 from .media import split_key, track_key
 from .quiet import parse_windows
@@ -76,6 +82,11 @@ SETTINGS: dict[str, tuple[str, Any]] = {
         vol.All(int, vol.Range(min=5, max=720)),
     ),
     CONF_LIMIT_ACTION: (SECTION_LISTENING, vol.In(LIMIT_ACTIONS)),
+    CONF_BEDTIME_FADE: (
+        SECTION_LISTENING,
+        vol.All(int, vol.Range(min=0, max=MAX_BEDTIME_FADE)),
+    ),
+    CONF_LIVE_ACTIVITY: (SECTION_ANNOUNCE, [str]),
     CONF_FILTER_ACTION: (SECTION_FILTER, vol.In(FILTER_ACTIONS)),
     CONF_MAX_VOLUME: (SECTION_VOLUME, vol.All(int, vol.Range(min=5, max=100))),
     CONF_ANNOUNCE_TTS: (SECTION_ANNOUNCE, vol.Any(None, str)),
@@ -112,6 +123,9 @@ def async_register(hass: HomeAssistant) -> None:
         ws_artists_save,
         ws_artists_delete,
         ws_artists_play,
+        ws_home_get,
+        ws_home_set,
+        ws_home_extension,
     ):
         websocket_api.async_register_command(hass, command)
 
@@ -221,6 +235,10 @@ def profile_summary(manager: MediaManager) -> dict[str, Any]:
         "quiet_window": d.quiet_window,
         "schedule": d.schedule,
         "remaining_seconds": d.remaining_seconds,
+        # When the music must stop next (quiet time or the end of listening time).
+        "stops_in": manager.seconds_until_stop(),
+        "bedtime_fade": manager.bedtime_fade,
+        "fading": bool(manager._fade),  # noqa: SLF001
         "mode": s.mode,
         "music_filter": s.music_filter,
         "force_block": s.force_block,
@@ -282,6 +300,7 @@ def ws_profiles(hass: HomeAssistant, connection, msg) -> None:
         msg["id"],
         {
             "profiles": [profile_summary(m) for m in _managers(hass)],
+            "home": home.summary() if (home := get_home(hass)) else None,
             "now": dt_util.utcnow().isoformat(),
         },
     )
@@ -442,6 +461,12 @@ def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
             CONF_ANNOUNCE_TTS: o.get(CONF_ANNOUNCE_TTS),
             CONF_ANNOUNCE_ON_PLAYER: bool(o.get(CONF_ANNOUNCE_ON_PLAYER)),
             CONF_ANNOUNCE_PLAYERS: list(o.get(CONF_ANNOUNCE_PLAYERS) or []),
+            CONF_BEDTIME_FADE: manager.bedtime_fade,
+            CONF_LIVE_ACTIVITY: list(o.get(CONF_LIVE_ACTIVITY) or []),
+            "phones": [
+                {"service": service, "name": name}
+                for service, name in phone_targets(hass).items()
+            ],
             "filter": manager.filter_rules(),
             "tts_entities": tts,
             "speakers": speakers,
@@ -693,7 +718,7 @@ def ws_action(hass: HomeAssistant, connection, msg) -> None:
     action = msg["action"]
     try:
         if action == "grant_extension":
-            manager.grant_extension(msg["minutes"])
+            manager.grant_extension(msg["minutes"], by=_by(connection))
         elif action == "force_block":
             manager.force_block()
         elif action == "unblock":
@@ -720,6 +745,81 @@ def ws_action(hass: HomeAssistant, connection, msg) -> None:
         )
         return
     connection.send_result(msg["id"], {"profile": profile_summary(manager)})
+
+
+# ---- whole home -------------------------------------------------------------------
+
+
+def _home_result(hass: HomeAssistant) -> dict[str, Any]:
+    home = get_home(hass)
+    assert home is not None
+    return {
+        "home": home.summary(),
+        "notify_targets": notify_targets(hass),
+        "speakers": [
+            {"entry_id": m.entry.entry_id, "name": m.name} for m in _managers(hass)
+        ],
+    }
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/home/get"})
+@require_access
+@callback
+def ws_home_get(hass: HomeAssistant, connection, msg) -> None:
+    connection.send_result(msg["id"], _home_result(hass))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/home/set",
+        # None: no limit. 0: no time until extra time is given.
+        vol.Required("daily_minutes"): vol.Any(
+            None, vol.All(int, vol.Range(min=0, max=1440))
+        ),
+        vol.Required("weekly_minutes"): vol.Any(
+            None, vol.All(int, vol.Range(min=0, max=7 * 1440))
+        ),
+        vol.Optional("week_start", default="monday"): vol.In(list(WEEK_STARTS)),
+        vol.Optional("warn_minutes", default=10): vol.All(
+            int, vol.Range(min=0, max=120)
+        ),
+        vol.Optional("action", default="stop"): vol.In(HOME_ACTIONS),
+        vol.Optional("notify", default=[]): [str],
+        vol.Optional("excluded", default=[]): [str],
+        vol.Optional("summary", default=[]): [str],
+    }
+)
+@require_access
+@callback
+def ws_home_set(hass: HomeAssistant, connection, msg) -> None:
+    """Save the whole home's limits and summary. Every speaker applies them straight away."""
+    try:
+        settings = HomeSettings.from_dict(
+            {k: v for k, v in msg.items() if k not in ("id", "type")}
+        )
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    home = get_home(hass)
+    assert home is not None
+    home.set_settings(settings)
+    connection.send_result(msg["id"], _home_result(hass))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/home/extension",
+        vol.Required("minutes"): vol.All(int, vol.Range(min=-240, max=720)),
+    }
+)
+@require_access
+@callback
+def ws_home_extension(hass: HomeAssistant, connection, msg) -> None:
+    """Give the whole home extra listening time today (negative takes time away)."""
+    home = get_home(hass)
+    assert home is not None
+    home.grant_extension(msg["minutes"], by=_by(connection))
+    connection.send_result(msg["id"], {"home": home.summary()})
 
 
 # ---- access ---------------------------------------------------------------------

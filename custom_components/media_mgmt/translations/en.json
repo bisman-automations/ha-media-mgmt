@@ -20,14 +20,16 @@
               "warn_minutes": "Warn before time runs out",
               "quiet_windows": "Quiet windows",
               "limit_action": "When music isn't allowed",
-              "adult_mode_duration": "Adult mode lasts"
+              "adult_mode_duration": "Adult mode lasts",
+              "bedtime_fade": "Fade out before it stops"
             },
             "data_description": {
               "daily_budget": "0 means no daily limit. Only time spent playing counts, not paused time.",
               "warn_minutes": "Fires a media_mgmt_warning event, and says it on the speaker if warnings are set up.",
               "quiet_windows": "Times music stays off, comma separated, e.g. 20:30-07:00 Bedtime, 08:00-15:00 School. Schedules can still play during them.",
               "limit_action": "What happens when the limit runs out, a quiet window starts or you block the speaker.",
-              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off."
+              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off.",
+              "bedtime_fade": "Turn the volume down over these minutes before a quiet window starts or the listening time runs out, so the music fades away instead of stopping suddenly. 0 turns it off."
             }
           },
           "filter": {
@@ -60,16 +62,18 @@
             }
           },
           "announcements": {
-            "name": "Spoken warnings",
-            "description": "Say when listening time is running out, and just before the music stops.",
+            "name": "Warnings",
+            "description": "Say when listening time is running out, and show it on phones.",
             "data": {
               "announce_tts": "Voice",
               "announce_on_player": "Say it on this speaker",
-              "announce_players": "Also say it on"
+              "announce_players": "Also say it on",
+              "live_activity": "Live Activity on phones"
             },
             "data_description": {
               "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
-              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
+              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others).",
+              "live_activity": "While music plays, these phones show how much listening time is left today, counting down. Needs the Home Assistant app on iPhone."
             }
           },
           "playback": {
@@ -107,14 +111,16 @@
               "warn_minutes": "Warn before time runs out",
               "quiet_windows": "Quiet windows",
               "limit_action": "When music isn't allowed",
-              "adult_mode_duration": "Adult mode lasts"
+              "adult_mode_duration": "Adult mode lasts",
+              "bedtime_fade": "Fade out before it stops"
             },
             "data_description": {
               "daily_budget": "0 means no daily limit. Only time spent playing counts, not paused time.",
               "warn_minutes": "Fires a media_mgmt_warning event, and says it on the speaker if warnings are set up.",
               "quiet_windows": "Times music stays off, comma separated, e.g. 20:30-07:00 Bedtime, 08:00-15:00 School. Schedules can still play during them.",
               "limit_action": "What happens when the limit runs out, a quiet window starts or you block the speaker.",
-              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off."
+              "adult_mode_duration": "How long the adult mode switch lifts every rule before turning itself off.",
+              "bedtime_fade": "Turn the volume down over these minutes before a quiet window starts or the listening time runs out, so the music fades away instead of stopping suddenly. 0 turns it off."
             }
           },
           "filter": {
@@ -147,16 +153,18 @@
             }
           },
           "announcements": {
-            "name": "Spoken warnings",
-            "description": "Say when listening time is running out, and just before the music stops.",
+            "name": "Warnings",
+            "description": "Say when listening time is running out, and show it on phones.",
             "data": {
               "announce_tts": "Voice",
               "announce_on_player": "Say it on this speaker",
-              "announce_players": "Also say it on"
+              "announce_players": "Also say it on",
+              "live_activity": "Live Activity on phones"
             },
             "data_description": {
               "announce_tts": "A text-to-speech entity, such as Piper or Google Translate.",
-              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others)."
+              "announce_on_player": "As an announcement over the music, on speakers that support it (Sonos, Google Cast, Music Assistant and others).",
+              "live_activity": "While music plays, these phones show how much listening time is left today, counting down. Needs the Home Assistant app on iPhone."
             }
           },
           "playback": {
@@ -260,6 +268,14 @@
         "minutes": {
           "name": "Minutes",
           "description": "Minutes to add. Negative to take time away."
+        },
+        "whole_home": {
+          "name": "Whole home too",
+          "description": "Also give the whole home's listening limit the same extra time."
+        },
+        "reason": {
+          "name": "Reason",
+          "description": "Why, shown in the Activity (for example a chore reward)."
         }
       }
     },

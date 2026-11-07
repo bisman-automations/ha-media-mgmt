@@ -36,6 +36,10 @@ STATES = [
 REASON_MANUAL = "manual"
 REASON_QUIET = "quiet_window"
 REASON_BUDGET = "budget"
+# The whole home's listening time (home.py) ran out
+REASON_HOME_DAILY = "home_daily"
+REASON_HOME_WEEKLY = "home_weekly"
+HOME_REASONS = (REASON_HOME_DAILY, REASON_HOME_WEEKLY)
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,8 @@ def decide(
     warn_minutes: int,
     quiet_windows: list[QuietWindow],
     schedule: str | None = None,
+    home_remaining: int | None = None,
+    home_reason: str | None = None,
 ) -> Decision:
     """What should be true about the speaker right now.
 
@@ -75,10 +81,18 @@ def decide(
     music, say) lifts the daily limit and quiet windows while it runs, but
     not a parent's Stop music now. The decision is the same in monitor-only
     mode; the caller just doesn't act on it.
+
+    ``home_remaining`` is the whole home's time left when the home's limit
+    stops speakers (``home_reason`` says which limit); whichever of the
+    speaker's and the home's time has less left applies.
     """
     remaining: int | None = None
+    limit_reason = REASON_BUDGET
     if budget_minutes > 0:
         remaining = (budget_minutes + extension_minutes) * 60 - used_seconds
+    if home_remaining is not None and (remaining is None or home_remaining < remaining):
+        remaining = home_remaining
+        limit_reason = home_reason or REASON_HOME_DAILY
 
     if mode == MODE_PAUSED:
         return Decision(STATE_PAUSED, remaining_seconds=remaining)
@@ -92,7 +106,7 @@ def decide(
         return Decision(STATE_ENFORCING, REASON_QUIET, window.name, remaining)
     if remaining is not None:
         if remaining <= 0:
-            return Decision(STATE_ENFORCING, REASON_BUDGET, remaining_seconds=0)
+            return Decision(STATE_ENFORCING, limit_reason, remaining_seconds=0)
         if remaining <= warn_minutes * 60:
-            return Decision(STATE_WARNING, REASON_BUDGET, remaining_seconds=remaining)
+            return Decision(STATE_WARNING, limit_reason, remaining_seconds=remaining)
     return Decision(STATE_OK, remaining_seconds=remaining)

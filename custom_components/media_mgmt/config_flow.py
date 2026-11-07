@@ -27,6 +27,7 @@ from .const import (
     CONF_ANNOUNCE_ON_PLAYER,
     CONF_ANNOUNCE_PLAYERS,
     CONF_ANNOUNCE_TTS,
+    CONF_BEDTIME_FADE,
     CONF_BLOCKED_ALBUMS,
     CONF_BLOCKED_ARTISTS,
     CONF_BLOCKED_KEYWORDS,
@@ -35,12 +36,14 @@ from .const import (
     CONF_DAILY_BUDGET,
     CONF_FILTER_ACTION,
     CONF_LIMIT_ACTION,
+    CONF_LIVE_ACTIVITY,
     CONF_MA_PLAYER,
     CONF_MAX_VOLUME,
     CONF_MEDIA_PLAYER,
     CONF_QUIET_WINDOWS,
     CONF_WARN_MINUTES,
     DEFAULT_ADULT_MODE_DURATION,
+    DEFAULT_BEDTIME_FADE,
     DEFAULT_DAILY_BUDGET,
     DEFAULT_FILTER_ACTION,
     DEFAULT_LIMIT_ACTION,
@@ -50,6 +53,7 @@ from .const import (
     DOMAIN,
     FILTER_ACTIONS,
     LIMIT_ACTIONS,
+    MAX_BEDTIME_FADE,
     MUSIC_ASSISTANT_DOMAIN,
     SECTION_ANNOUNCE,
     SECTION_FILTER,
@@ -58,6 +62,7 @@ from .const import (
     SECTION_VOLUME,
 )
 from .filters import clean_list
+from .live_activity import phone_targets
 from .manager import flatten_options
 from .quiet import parse_windows
 
@@ -93,7 +98,9 @@ def _lines(value: Any) -> str:
     return "\n".join(clean_list(value)) if not isinstance(value, str) else value
 
 
-def _settings_schema(d: Mapping[str, Any]) -> vol.Schema:
+def _settings_schema(
+    d: Mapping[str, Any], phones: Mapping[str, str] | None = None
+) -> vol.Schema:
     multiline = selector.TextSelector(selector.TextSelectorConfig(multiline=True))
     listening = vol.Schema(
         {
@@ -116,11 +123,23 @@ def _settings_schema(d: Mapping[str, Any]) -> vol.Schema:
                 default=d.get(CONF_LIMIT_ACTION, DEFAULT_LIMIT_ACTION),
             ): _choice(LIMIT_ACTIONS, CONF_LIMIT_ACTION),
             vol.Required(
+                CONF_BEDTIME_FADE,
+                default=d.get(CONF_BEDTIME_FADE, DEFAULT_BEDTIME_FADE),
+            ): _number(0, MAX_BEDTIME_FADE, "min"),
+            vol.Required(
                 CONF_ADULT_MODE_DURATION,
                 default=d.get(CONF_ADULT_MODE_DURATION, DEFAULT_ADULT_MODE_DURATION),
             ): _number(5, 720, "min"),
         }
     )
+    picked = list(d.get(CONF_LIVE_ACTIVITY) or [])
+    phone_options = [
+        selector.SelectOptionDict(value=service, label=name)
+        for service, name in {
+            **(phones or {}),
+            **{p: p for p in picked if p not in (phones or {})},
+        }.items()
+    ]
     music_filter: dict[Any, Any] = {
         vol.Optional(
             key, description={"suggested_value": _lines(d.get(key))}
@@ -163,6 +182,15 @@ def _settings_schema(d: Mapping[str, Any]) -> vol.Schema:
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=MP_DOMAIN, multiple=True)
             ),
+            vol.Optional(
+                CONF_LIVE_ACTIVITY, description={"suggested_value": picked}
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=phone_options,
+                    multiple=True,
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
         }
     )
     # Playing artists: Media Mgmt finds the speaker's Music Assistant player
@@ -203,7 +231,13 @@ def process_settings(
         errors["base"] = "bad_quiet_windows"
     else:
         listening[CONF_QUIET_WINDOWS] = ", ".join(w.format() for w in windows)
-    for key in (CONF_DAILY_BUDGET, CONF_WARN_MINUTES, CONF_ADULT_MODE_DURATION):
+    listening.setdefault(CONF_BEDTIME_FADE, DEFAULT_BEDTIME_FADE)
+    for key in (
+        CONF_DAILY_BUDGET,
+        CONF_WARN_MINUTES,
+        CONF_ADULT_MODE_DURATION,
+        CONF_BEDTIME_FADE,
+    ):
         if key in listening:
             listening[key] = int(listening[key])
     listening.setdefault(CONF_LIMIT_ACTION, DEFAULT_LIMIT_ACTION)
@@ -225,6 +259,7 @@ def process_settings(
         CONF_ANNOUNCE_TTS: raw.get(CONF_ANNOUNCE_TTS) or None,
         CONF_ANNOUNCE_ON_PLAYER: bool(raw.get(CONF_ANNOUNCE_ON_PLAYER)),
         CONF_ANNOUNCE_PLAYERS: list(raw.get(CONF_ANNOUNCE_PLAYERS) or []),
+        CONF_LIVE_ACTIVITY: list(raw.get(CONF_LIVE_ACTIVITY) or []),
     }
     if (
         announce[CONF_ANNOUNCE_PLAYERS] or announce[CONF_ANNOUNCE_ON_PLAYER]
@@ -289,7 +324,9 @@ class MediaMgmtConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return self.async_show_form(
             step_id="settings",
-            data_schema=_settings_schema(flatten_options(user_input or {})),
+            data_schema=_settings_schema(
+                flatten_options(user_input or {}), phone_targets(self.hass)
+            ),
             errors=errors,
             description_placeholders={"entity": self._entity_id},
         )
@@ -312,7 +349,8 @@ class MediaMgmtOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_settings_schema(
-                flatten_options(dict(user_input or self.config_entry.options))
+                flatten_options(dict(user_input or self.config_entry.options)),
+                phone_targets(self.hass),
             ),
             errors=errors,
         )

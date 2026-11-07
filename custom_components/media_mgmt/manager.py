@@ -27,6 +27,7 @@ from .const import (
     CONF_ANNOUNCE_ON_PLAYER,
     CONF_ANNOUNCE_PLAYERS,
     CONF_ANNOUNCE_TTS,
+    CONF_BEDTIME_FADE,
     CONF_BLOCKED_ALBUMS,
     CONF_BLOCKED_ARTISTS,
     CONF_BLOCKED_KEYWORDS,
@@ -35,12 +36,14 @@ from .const import (
     CONF_DAILY_BUDGET,
     CONF_FILTER_ACTION,
     CONF_LIMIT_ACTION,
+    CONF_LIVE_ACTIVITY,
     CONF_MA_PLAYER,
     CONF_MAX_VOLUME,
     CONF_MEDIA_PLAYER,
     CONF_QUIET_WINDOWS,
     CONF_WARN_MINUTES,
     DEFAULT_ADULT_MODE_DURATION,
+    DEFAULT_BEDTIME_FADE,
     DEFAULT_DAILY_BUDGET,
     DEFAULT_FILTER_ACTION,
     DEFAULT_LIMIT_ACTION,
@@ -60,6 +63,8 @@ from .const import (
     VOLUME_COOLDOWN,
 )
 from .filters import MusicFilter, add_rule, clean_list, remove_rule
+from .home_limits import get_home
+from .live_activity import SpeakerLiveActivity
 from .ma_link import LINK_SELF, MALink, resolve as resolve_ma_link
 from .media import describe, media_id, norm, track_key
 from .playback import (
@@ -72,7 +77,7 @@ from .playback import (
     is_uri,
 )
 from .player import Player
-from .quiet import QuietWindow, parse_windows
+from .quiet import QuietWindow, parse_windows, seconds_until_quiet
 from .schedules import PLAY_CONTENT, PLAY_RESUME, PLAY_SOURCE, Schedule
 from .state import (
     MODE_ENFORCED,
@@ -125,6 +130,7 @@ class MediaManager:
         self.announcer: Announcer | None = None
         # The Music Assistant player for this speaker, and how it was found.
         self.ma_link = MALink()
+        self.live_activity = SpeakerLiveActivity(self)
         self.apply_options(dict(entry.options), start=False)
 
         self._unsubs: list[CALLBACK_TYPE] = []
@@ -158,6 +164,7 @@ class MediaManager:
     @callback
     def apply_options(self, options: dict[str, Any], *, start: bool = True) -> None:
         """Use new settings without reloading the profile."""
+        phones_before = list(self.options.get(CONF_LIVE_ACTIVITY) or [])
         self.options = flatten_options(options)
         o = self.options
         self.filter = MusicFilter(
@@ -187,6 +194,8 @@ class MediaManager:
             self._filter_key = None  # re-check what's playing against the new rules
             self._recompute()
             self._evaluate()
+            if list(self.options.get(CONF_LIVE_ACTIVITY) or []) != phones_before:
+                self.live_activity.phones_changed()
             self.notify()
 
     # ---- properties --------------------------------------------------------------
@@ -228,6 +237,10 @@ class MediaManager:
     @property
     def max_volume(self) -> int:
         return int(self.options.get(CONF_MAX_VOLUME, DEFAULT_MAX_VOLUME))
+
+    @property
+    def bedtime_fade(self) -> int:
+        return int(self.options.get(CONF_BEDTIME_FADE, DEFAULT_BEDTIME_FADE) or 0)
 
     @property
     def limit_action(self) -> str:
@@ -278,6 +291,8 @@ class MediaManager:
             )
         )
         self._last_tick = dt_util.utcnow()
+        if home := get_home(self.hass):
+            home.register(self)
         self._resume_logged_play()
         self._snapshot()
         self._log_state()
@@ -286,9 +301,13 @@ class MediaManager:
         self._check_schedules()
         self._evaluate()
         self._record_today()
+        self.live_activity.async_start()
 
     async def async_stop(self) -> None:
+        self.live_activity.async_stop()
         self._count_usage()
+        if home := get_home(self.hass):
+            home.unregister(self)
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -469,6 +488,8 @@ class MediaManager:
         previous = self.decision
         now = dt_util.now()
         sched = self._active_schedule(now)
+        home = get_home(self.hass)
+        home_remaining, home_reason = home.remaining_for(self) if home else (None, None)
         self.decision = decide(
             now=now.time(),
             mode=self.state.mode,
@@ -480,9 +501,13 @@ class MediaManager:
             warn_minutes=self.warn_minutes,
             quiet_windows=self.quiet_windows,
             schedule=sched.name if sched else None,
+            home_remaining=home_remaining,
+            home_reason=home_reason,
         )
         if not fire_events:
             return
+        if home:
+            home.check()
         d = self.decision
         if (previous.state, previous.reason, previous.schedule) != (
             d.state,
@@ -537,6 +562,7 @@ class MediaManager:
         self._enforce_filter()
         self._enforce_volume()
         self._check_sleep_timer()
+        self._check_bedtime_fade()
 
     # Stop music while it isn't allowed ------------------------------------------------
 
@@ -594,7 +620,13 @@ class MediaManager:
             _LOGGER.info(
                 "Media Mgmt %s: stopping music (%s)", self.name, self.decision.reason
             )
-        self.hass.async_create_task(self.player.async_do(action))
+        self.hass.async_create_task(self._async_stop_music(action))
+
+    async def _async_stop_music(self, action: str) -> None:
+        await self.player.async_do(action)
+        if self._fade is None and self.state.fade_restore is not None:
+            # Faded down before bedtime: put the volume back for next time.
+            self._restore_volume()
 
     def _retry_delay(self) -> float:
         """10 s, 20 s, 40 s ... up to 10 min between tries."""
@@ -789,6 +821,54 @@ class MediaManager:
             self._cancel_fade(restore=True)
         self.store.schedule_save()
         self.notify()
+
+    # Bedtime fade ------------------------------------------------------------------------
+
+    def seconds_until_stop(self) -> int | None:
+        """Seconds until quiet time or the end of listening time stops the music."""
+        d = self.decision
+        if d.state not in (STATE_OK, STATE_WARNING):
+            return None
+        left = [
+            s
+            for s in (
+                d.remaining_seconds,
+                seconds_until_quiet(self.quiet_windows, dt_util.now().time()),
+            )
+            if s is not None
+        ]
+        return min(left) if left else None
+
+    @callback
+    def _check_bedtime_fade(self) -> None:
+        """Turn the volume down over the last minutes before the music has to stop."""
+        fade = self._fade
+        if fade and fade.get("reason") == "bedtime":
+            if self.decision.blocked:
+                # Time's up: stop fading; the volume goes back once the music stops.
+                self._cancel_fade(restore=False)
+                return
+            left = self.seconds_until_stop()
+            if left is None or left > self.bedtime_fade * 60 + 2 * FADE_STEP:
+                # Extra time was given, or the rules paused: back to normal.
+                self._cancel_fade(restore=True)
+            return
+        minutes = self.bedtime_fade
+        if (
+            not minutes
+            or fade
+            or not self._enforcing()
+            or not self.player.is_playing
+            or self.adult_mode_active
+        ):
+            return
+        left = self.seconds_until_stop()
+        if left is None or left <= 0 or left > minutes * 60:
+            return
+        now = dt_util.utcnow()
+        until = now + timedelta(seconds=left)
+        self._log(act.EV_SLEEP, action="bedtime_fade", minutes=max(1, round(left / 60)))
+        self._start_fade(now, until, reason="bedtime")
 
     # Fading out --------------------------------------------------------------------------
 
@@ -1267,12 +1347,30 @@ class MediaManager:
         self._changed()
 
     @callback
-    def grant_extension(self, minutes: int) -> None:
+    def grant_extension(
+        self, minutes: int, reason: str | None = None, by: str | None = None
+    ) -> None:
         self._count_usage()
         self._snapshot()
         self.state.extension_minutes += minutes
-        self._log(act.EV_EXTENSION, minutes=minutes)
+        extra = {k: v for k, v in (("reason", reason), ("by", by)) if v}
+        self._log(act.EV_EXTENSION, minutes=minutes, **extra)
         self._changed()
+
+    @callback
+    def refresh(self) -> None:
+        """Re-decide and act now: the whole home's limits or time changed."""
+        self._count_usage()
+        self._recompute()
+        self._evaluate()
+        self.notify()
+
+    @callback
+    def log_home_extension(
+        self, minutes: int, by: str | None = None, reason: str | None = None
+    ) -> None:
+        extra = {k: v for k, v in (("reason", reason), ("by", by)) if v}
+        self._log(act.EV_HOME_EXTENSION, minutes=minutes, **extra)
 
     @callback
     def force_block(self) -> None:
@@ -1339,6 +1437,7 @@ class MediaManager:
     @callback
     def notify(self) -> None:
         self._record_today()
+        self.live_activity.refresh()
         async_dispatcher_send(self.hass, SIGNAL_UPDATED.format(self.entry.entry_id))
         async_dispatcher_send(self.hass, SIGNAL_ANY_UPDATED, self.entry.entry_id)
 
@@ -1390,6 +1489,11 @@ class MediaManager:
             album=media.get("album"),
             source=media.get("source"),
         )
+
+    @callback
+    def record_today(self) -> None:
+        """Store today's totals now (the weekly summary reads them)."""
+        self._record_today()
 
     @callback
     def _record_today(self) -> None:
