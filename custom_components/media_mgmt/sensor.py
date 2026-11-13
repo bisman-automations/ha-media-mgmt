@@ -24,6 +24,9 @@ from .manager import MediaManager
 from .media import describe, track_key
 from .state import STATES
 
+# Coordinator or push updates; nothing polls on its own.
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class MediaMgmtSensorDescription(SensorEntityDescription):

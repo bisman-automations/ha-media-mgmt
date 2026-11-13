@@ -18,6 +18,9 @@ from .const import DOMAIN, SIGNAL_ARTISTS_UPDATED
 from .entity import MediaMgmtEntity
 from .saved import async_play_request, get_saved
 
+# Coordinator or push updates; nothing polls on its own.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

@@ -8,6 +8,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .state import MODE_ENFORCED
@@ -38,7 +39,7 @@ class ProfileState:
     schedule_runs: dict[str, dict[str, str]] = field(default_factory=dict)
 
     # Today's counters
-    day: str = field(default_factory=lambda: date.today().isoformat())
+    day: str = field(default_factory=lambda: dt_util.now().date().isoformat())
     used_seconds: int = 0  # counts toward the daily limit
     schedule_seconds: int = 0  # played by a schedule, through the limits
     extension_minutes: int = 0
