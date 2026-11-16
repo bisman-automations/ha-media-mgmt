@@ -235,7 +235,7 @@ Media Mgmt can say "5 minutes of music left" at the warning time, and "The music
 - **On the speaker itself,** as an announcement over the music, on speakers that support announcements (Sonos, Google Cast, Music Assistant and others). The music comes back after.
 - **On other speakers,** such as one in the kitchen.
 
-**Live Activity on phones.** Pick phones under **Rules → Warnings**. While music plays, they show how much listening time is left today on the lock screen, counting down by itself. It updates when extra time is given, a warning starts or the time runs out, and goes away a minute after the music stops. It needs the Home Assistant app on iPhone.
+**Live Activity on phones.** Pick phones under **Rules → Warnings**. While music plays, they show what's playing and how much listening time is left today on the lock screen, counting down by itself. It updates when the song changes, extra time is given, a warning starts or the time runs out, and goes away a minute after the music stops. It needs the Home Assistant app on iPhone.
 
 ## What you get
 

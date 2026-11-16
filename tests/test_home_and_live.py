@@ -195,3 +195,39 @@ def test_same_view_ignores_small_drift() -> None:
     assert not same_view(a, LiveView("Time left today", "x", "ok", 1200))
     assert not same_view(a, LiveView("Time's up", "x", "bad"))
     assert same_view(None, None) and not same_view(a, None)
+
+
+def test_live_view_shows_whats_playing() -> None:
+    """1.5.4: while the music may carry on, the message is the song; the
+    headline and countdown still say how the time stands."""
+    base = {
+        "playing": True,
+        "state": STATE_OK,
+        "reason": None,
+        "used_seconds": 0,
+        "quiet_window": None,
+        "schedule": None,
+        "now": 0,
+    }
+    song = "Clair de Lune by Debussy"
+    free = live_view(**base, remaining_seconds=None, song=song)
+    assert (free.headline, free.message, free.song) == ("No limit today", song, song)
+    timed = live_view(**base, remaining_seconds=1800, song=song)
+    assert timed.headline == "Time left today" and timed.message == song
+    assert timed.ends_at is not None
+    # Stopping: the reason, not the song.
+    stopped = live_view(
+        **{**base, "state": STATE_ENFORCING, "reason": "manual"},
+        remaining_seconds=None,
+        song=song,
+    )
+    assert stopped.message == "A parent stopped the music for now."
+    # Nothing known about the song: the usual line.
+    assert live_view(**base, remaining_seconds=None, song="  ").message == (
+        "This speaker has no daily limit."
+    )
+    # A long title is cut; a new song is worth a push, drift isn't.
+    long = live_view(**base, remaining_seconds=None, song="x" * 200)
+    assert len(long.message) == 80 and long.message.endswith("…")
+    other = live_view(**base, remaining_seconds=1800, song="Gymnopédie by Satie")
+    assert not same_view(timed, other)

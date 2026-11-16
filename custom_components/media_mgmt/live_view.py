@@ -38,6 +38,20 @@ class LiveView:
     # When the time runs out, epoch seconds rounded to the minute. The phone
     # counts down to it; None when nothing is counting down.
     ends_at: int | None = None
+    # What's playing ("Clair de Lune by Debussy"), shown as the message while
+    # the music may carry on; a new song is a change worth a push.
+    song: str | None = None
+
+
+# Long titles are cut so the line stays readable on the lock screen.
+MAX_SONG = 80
+
+
+def _song_line(song: str | None) -> str | None:
+    text = " ".join(str(song or "").split())
+    if not text:
+        return None
+    return text if len(text) <= MAX_SONG else text[: MAX_SONG - 1].rstrip() + "…"
 
 
 def duration(seconds: float) -> str:
@@ -60,23 +74,31 @@ def live_view(
     schedule: str | None,
     now: float,
     clock: Callable[[int], str] | None = None,
+    song: str | None = None,
 ) -> LiveView:
     """The activity for this moment.
 
     ``now`` is epoch seconds; ``clock`` formats an epoch time as the local
-    time of day ("7:45 PM") for when the time runs out.
+    time of day ("7:45 PM") for when the time runs out. ``song`` is what's
+    playing: while the music may carry on, it's the message, and the
+    headline (and countdown) says how the time stands.
     """
     listened = f"{duration(used_seconds)} listened today"
     if not playing:
         return LiveView("Music off", listened, TONE_OFF)
+    line = _song_line(song)
+
+    def ok(
+        headline: str, message: str, tone: str = TONE_OK, ends_at: int | None = None
+    ) -> LiveView:
+        return LiveView(headline, line or message, tone, ends_at, line)
+
     if state == STATE_PAUSED:
-        return LiveView("Rules paused", "No limits right now.", TONE_OK)
+        return ok("Rules paused", "No limits right now.")
     if state == STATE_ADULT_MODE:
-        return LiveView("Adult mode", "Every rule is lifted for now.", TONE_OK)
+        return ok("Adult mode", "Every rule is lifted for now.")
     if state == STATE_SCHEDULE:
-        return LiveView(
-            schedule or "Schedule", "Playing through the limits for now.", TONE_OK
-        )
+        return ok(schedule or "Schedule", "Playing through the limits for now.")
     if state == STATE_ENFORCING:
         if reason == REASON_QUIET:
             return LiveView(
@@ -90,11 +112,11 @@ def live_view(
         return LiveView("Time's up", f"That's all of {whose} music time.", TONE_BAD)
     if remaining_seconds is None:
         # Time listened isn't shown while playing: it would need a push a minute.
-        return LiveView("No limit today", "This speaker has no daily limit.", TONE_OK)
+        return ok("No limit today", "This speaker has no daily limit.")
     ends_at = int(now + remaining_seconds) // 60 * 60
     whose = "The whole home's music time" if reason in HOME_REASONS else "Music time"
     message = f"{whose} ends at {clock(ends_at)}." if clock else f"{whose} left today."
-    return LiveView(
+    return ok(
         "Time left today",
         message,
         TONE_WARN if state == STATE_WARNING else TONE_OK,
@@ -111,7 +133,7 @@ def same_view(a: LiveView | None, b: LiveView | None) -> bool:
     """Whether the phone already shows ``b`` (``a`` is what it shows)."""
     if a is None or b is None:
         return a is b
-    if a.headline != b.headline or a.tone != b.tone:
+    if a.headline != b.headline or a.tone != b.tone or a.song != b.song:
         return False
     if a.ends_at is None or b.ends_at is None:
         return a.ends_at is b.ends_at and a.message == b.message

@@ -207,6 +207,12 @@ async def test_live_activity_follows_the_music(
     entry.runtime_data.grant_extension(15)
     await hass.async_block_till_done()
     assert len(sent) == count + 1
+    # It says what's playing, and a new song is pushed (1.5.4).
+    assert sent[-1].data["message"] == "Clair de Lune by Debussy"
+    set_speaker(hass, title="Gymnopédie No. 1", artist="Satie")
+    await hass.async_block_till_done()
+    assert len(sent) == count + 2
+    assert sent[-1].data["message"] == "Gymnopédie No. 1 by Satie"
 
     set_speaker(hass, state="paused")
     await hass.async_block_till_done()

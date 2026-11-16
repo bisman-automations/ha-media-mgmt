@@ -33,6 +33,7 @@ from .live_view import (
     live_view,
     same_view,
 )
+from .media import describe
 
 if TYPE_CHECKING:
     from .manager import MediaManager
@@ -147,6 +148,7 @@ class SpeakerLiveActivity:
             schedule=decision.schedule,
             now=dt_util.utcnow().timestamp(),
             clock=clock,
+            song=describe(m.player.media),
         )
 
     @callback
