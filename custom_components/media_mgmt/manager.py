@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -99,6 +100,9 @@ _LOGGER = logging.getLogger(__name__)
 # don't count it as listening.
 RESUME_PLAY_WITHIN = timedelta(hours=1)
 MAX_TICK_GAP = timedelta(minutes=5)
+# How often a tick looks for a speaker's Music Assistant player that isn't
+# found yet (registry changes look again straight away).
+MA_RETRY = timedelta(minutes=5)
 MAX_FILTER_TRIES = 3
 VOLUME_LOG_EVERY = timedelta(minutes=2)
 FADE_FLOOR = 0.02  # don't fade all the way to silence before stopping
@@ -113,6 +117,12 @@ def flatten_options(options: dict[str, Any]) -> dict[str, Any]:
         else:
             flat[key] = value
     return flat
+
+
+@callback
+def _media_player_change(event_data: Mapping[str, Any]) -> bool:
+    """An entity registry change about a media player."""
+    return str(event_data.get("entity_id", "")).startswith("media_player.")
 
 
 class MediaManager:
@@ -135,6 +145,11 @@ class MediaManager:
 
         self._unsubs: list[CALLBACK_TYPE] = []
         self._last_tick: datetime | None = None
+        # What the dashboards and entities showed after the last tick, so a
+        # quiet tick (nothing playing, nothing changing) tells nobody.
+        self._tick_seen: tuple[Any, ...] | None = None
+        # When the Music Assistant player was last looked for on a tick.
+        self._ma_tried: datetime | None = None
         # What was playing at the last count, credited the time since then.
         self._counting: dict[str, Any] | None = None
         self._logged_state: str | None = None
@@ -273,8 +288,12 @@ class MediaManager:
         self.refresh_ma_link(notify=False)
         self.player.async_start(self._on_player_update)
         self._unsubs.append(
+            # Only media player changes can change the link; the rest of the
+            # registry's changes don't reach the handler at all.
             self.hass.bus.async_listen(
-                er.EVENT_ENTITY_REGISTRY_UPDATED, self._on_registry_update
+                er.EVENT_ENTITY_REGISTRY_UPDATED,
+                self._on_registry_update,
+                event_filter=_media_player_change,
             )
         )
         self._unsubs.append(
@@ -302,6 +321,7 @@ class MediaManager:
         self._evaluate()
         self._record_today()
         self.live_activity.async_start()
+        self._tick_seen = self._tick_fingerprint()
 
     async def async_stop(self) -> None:
         self.live_activity.async_stop()
@@ -364,15 +384,44 @@ class MediaManager:
 
     @callback
     def _on_tick(self, _now: datetime) -> None:
-        if not self.ma_link.linked:
-            # Music Assistant may have added the player since (or named it just after adding it).
+        now = dt_util.utcnow()
+        if not self.ma_link.linked and (
+            self._ma_tried is None or now - self._ma_tried >= MA_RETRY
+        ):
+            # Music Assistant may have added the player since (or named it
+            # just after adding it). Registry changes look again at once;
+            # this is the safety net, and reading the whole entity registry
+            # every 15 seconds per speaker was too often for it.
+            self._ma_tried = now
             self.refresh_ma_link(notify=False)
         self._count_usage()
         self._snapshot()
         self._recompute()
         self._check_schedules()
         self._evaluate()
-        self.notify()
+        # Tell the entities, dashboards and the Live Activity only when
+        # something they show changed (other changes call notify()).
+        seen = self._tick_fingerprint()
+        if seen != self._tick_seen:
+            self._tick_seen = seen
+            self.notify()
+
+    def _tick_fingerprint(self) -> tuple[Any, ...]:
+        """What a tick can change: today's counts, the decision, the
+        speaker and what's playing, the link, and the next schedule."""
+        player = self.player
+        now = dt_util.now()
+        return (
+            repr(self.state),
+            self.decision,
+            repr(self.ma_link),
+            player.available,
+            player.is_on,
+            player.state,
+            repr(player.media),
+            player.volume,
+            tuple(s.next_run(now) for s in self.schedules if s.enabled),
+        )
 
     # ---- counting ----------------------------------------------------------------
 
@@ -1436,6 +1485,7 @@ class MediaManager:
 
     @callback
     def notify(self) -> None:
+        self._tick_seen = self._tick_fingerprint()
         self._record_today()
         self.live_activity.refresh()
         async_dispatcher_send(self.hass, SIGNAL_UPDATED.format(self.entry.entry_id))

@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-11-15
+
+### Changed
+
+- Every 15 seconds Media Mgmt checks each speaker. When nothing changed (nothing playing, nothing counting), it no longer tells the speaker's sensors, the sidebar and the Live Activity to update. While music plays, they update as before.
+- A speaker that isn't linked to a Music Assistant player is looked for again every 5 minutes instead of every 15 seconds; adding or renaming a player in Music Assistant still links it straight away. Media Mgmt also only looks at entity changes for media players.
+- The sidebar doesn't refresh or move its progress bars in a hidden browser tab or on a switched-off screen. It catches up once when it's seen again.
+
 ## [1.5.3] - 2026-11-14
 
 ### Changed
@@ -156,6 +164,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
+[1.5.4]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.0...v1.5.1

@@ -615,6 +615,12 @@ input[type="checkbox"].check, input[type="radio"] { width: 18px; height: 18px; a
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .sk::after { animation: none; display: none; } }
 `;
 
+
+// Whether the page can't be seen (another tab, or a screen that's off).
+function pageHidden() {
+  return typeof document !== "undefined" && Boolean(document.hidden);
+}
+
 class MediaMgmtPanel extends HTMLElement {
   constructor() {
     super();
@@ -716,6 +722,10 @@ class MediaMgmtPanel extends HTMLElement {
     clearInterval(this._timer);
     clearInterval(this._progressTimer);
     this._timer = this._progressTimer = null;
+    if (this._onVisible) {
+      document.removeEventListener("visibilitychange", this._onVisible);
+      this._onVisible = null;
+    }
   }
 
   // ---- data ------------------------------------------------------------------
@@ -775,6 +785,21 @@ class MediaMgmtPanel extends HTMLElement {
   }
 
   _scheduleRefresh() {
+    if (pageHidden()) {
+      // Nobody's looking (another tab, a screen that's off): refresh once
+      // when the page is seen again instead of after every change.
+      this._stale = true;
+      if (!this._onVisible) {
+        this._onVisible = () => {
+          if (!pageHidden() && this._stale) {
+            this._stale = false;
+            this._scheduleRefresh();
+          }
+        };
+        document.addEventListener("visibilitychange", this._onVisible);
+      }
+      return;
+    }
     if (this._refreshPending) return;
     this._refreshPending = true;
     setTimeout(async () => {
@@ -1442,6 +1467,7 @@ class MediaMgmtPanel extends HTMLElement {
   }
 
   _tickProgress() {
+    if (pageHidden()) return;
     this.shadowRoot.querySelectorAll(".progress[data-duration]").forEach((el) => {
       const dur = Number(el.dataset.duration);
       let pos = Number(el.dataset.position);
