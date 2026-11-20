@@ -29,3 +29,10 @@ source = ["custom_components/media_mgmt"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+
+[tool.mypy]
+# Type-checked in CI (the lint job, `mypy: custom_components/media_mgmt` in
+# .github/workflows/test.yml) against the newest Home Assistant's types.
+python_version = "3.14"
+ignore_missing_imports = true
+check_untyped_defs = true

@@ -72,7 +72,7 @@ class PlayResult:
 
 
 def is_share_link(value: str | None) -> bool:
-    return bool(value) and value.startswith(("http://", "https://"))
+    return bool(value) and str(value).startswith(("http://", "https://"))
 
 
 def is_uri(value: str | None) -> bool:
@@ -124,7 +124,8 @@ async def ma_search(
         )
         return None
     key = "radio" if media_type == "radio" else f"{media_type}s"
-    items = (response or {}).get(key) or []
+    found = (response or {}).get(key) if isinstance(response, dict) else None
+    items = found if isinstance(found, list) else []
     return [i for i in items if isinstance(i, dict)]
 
 

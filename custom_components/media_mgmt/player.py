@@ -21,7 +21,14 @@ from homeassistant.components.media_player import (
     MediaPlayerEntityFeature as F,
 )
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
@@ -199,7 +206,7 @@ class Player:
         on_change = self._on_change
 
         @callback
-        def _changed(_event: Event) -> None:
+        def _changed(_event: Event[EventStateChangedData]) -> None:
             on_change()
 
         ids = [self.entity_id] + (

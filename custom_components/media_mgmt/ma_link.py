@@ -166,7 +166,7 @@ def resolve(hass: HomeAssistant, entity_id: str, override: str | None = None) ->
         )
         macs = {
             mac
-            for kind, value in (device.connections if device else set())
+            for kind, value in (getattr(device, "connections", None) or set())
             if kind == dr.CONNECTION_NETWORK_MAC and (mac := _mac(value))
         }
         if macs:

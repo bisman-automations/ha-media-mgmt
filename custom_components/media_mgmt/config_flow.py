@@ -9,8 +9,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-import voluptuous as vol
-
 from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -65,6 +63,8 @@ from .filters import clean_list
 from .live_activity import phone_targets
 from .manager import flatten_options
 from .quiet import parse_windows
+from .references import speaker_taken
+from .schema import vol
 
 LIST_KEYS = (
     CONF_BLOCKED_TRACKS,
@@ -243,7 +243,9 @@ def process_settings(
     listening.setdefault(CONF_LIMIT_ACTION, DEFAULT_LIMIT_ACTION)
 
     raw_filter = user_input.get(SECTION_FILTER, {})
-    music_filter = {key: clean_list(raw_filter.get(key) or []) for key in LIST_KEYS}
+    music_filter: dict[str, Any] = {
+        key: clean_list(raw_filter.get(key) or []) for key in LIST_KEYS
+    }
     music_filter[CONF_FILTER_ACTION] = (
         raw_filter.get(CONF_FILTER_ACTION) or DEFAULT_FILTER_ACTION
     )
@@ -329,6 +331,53 @@ class MediaMgmtConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
             description_placeholders={"entity": self._entity_id},
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Point the profile at another speaker (Reconfigure on the entry).
+
+        For when the speaker was replaced, or its media player was deleted
+        and added again under another ID. Rules, schedules, blocked music and
+        listening history stay with the profile; only the speaker it manages
+        changes. The update listener reloads the profile with the new speaker.
+        """
+        entry = self._get_reconfigure_entry()
+        current = entry.data.get(CONF_MEDIA_PLAYER)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            new_id = user_input[CONF_MEDIA_PLAYER]
+            if new_id != current and speaker_taken(self.hass, entry, new_id):
+                # Another profile manages that speaker already; two profiles
+                # would fight over the same speaker.
+                errors[CONF_MEDIA_PLAYER] = "speaker_taken"
+            else:
+                # No reload here: the entry's update listener reloads the
+                # profile when its speaker changes (Home Assistant reports
+                # flows that reload an entry that has an update listener).
+                return self.async_update_and_abort(
+                    entry,
+                    unique_id=new_id,
+                    data_updates={CONF_MEDIA_PLAYER: new_id},
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_MEDIA_PLAYER): selector.EntitySelector(
+                            selector.EntitySelectorConfig(domain=MP_DOMAIN)
+                        )
+                    }
+                ),
+                user_input or {CONF_MEDIA_PLAYER: current},
+            ),
+            errors=errors,
+            description_placeholders={
+                "profile": entry.title,
+                "entity": current or "",
+            },
         )
 
     @staticmethod

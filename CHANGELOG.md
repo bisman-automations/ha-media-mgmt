@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-11-19
+
+### Added
+
+- **Change the speaker.** Replaced a speaker, or added it to Home Assistant again under another name? Choose **Reconfigure** on the speaker under **Settings → Devices & services → Media Mgmt** and pick the speaker to manage now. Its rules, schedules, blocked music and listening history stay.
+- **Repairs.** When a speaker Media Mgmt manages is deleted from Home Assistant, **Settings → Repairs** says so, and **Fix** lets you pick the speaker to manage now. The same for a Music Assistant player picked under **Playback**: pick another one, or leave it empty and Media Mgmt finds it itself. A repair goes away by itself when the speaker or player comes back. A speaker that's only switched off or unavailable isn't reported.
+
+### Fixed
+
+- **A speaker whose entity ID is changed keeps its rules.** Changing a speaker's entity ID (**Settings → Entities → the speaker → Entity ID**) left Media Mgmt watching the old one, so music on that speaker wasn't counted, and limits, quiet windows, the volume cap and blocked music stopped working, with nothing to say so. Media Mgmt now follows the new entity ID, and so do the Music Assistant player and the announcement speakers picked in the settings.
+- **Diagnostics leave out more.** The diagnostics file no longer includes who last changed the speaker, the phones picked for the Live Activity, or anything after the `?` in a web address (such as a stream link with a token from a music service).
+
+### Changed
+
+- **More checks before each release.** Type checking (mypy) and tests for the sidebar app, which draw every tab from what Media Mgmt really sends, now run with every change, as does a test that Media Mgmt never reads or writes files while Home Assistant is busy.
+- **Ruff 0.17.6.** Linting uses the current Ruff release.
+
 ## [1.6.0] - 2026-11-15
 
 ### Added
@@ -170,6 +187,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
+[1.7.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.2...v1.5.3

@@ -1,5 +1,6 @@
-# Tests: lint, the sidebar panel scripts, and pytest on the oldest supported
-# and the newest Home Assistant (plus the upcoming one, information only).
+# Tests: lint (ruff, mypy), the sidebar panel (node --check and the Node tests
+# in tests/*.mjs), and pytest on the oldest supported and the newest Home
+# Assistant (plus the upcoming one, information only).
 # The jobs live in the shared workflow so every bisman-automations repo tests
 # the same way: https://github.com/bisman-automations/.github
 # (.github/workflows/ha-test.yml documents every input).
@@ -26,3 +27,11 @@ concurrency:
 jobs:
   test:
     uses: bisman-automations/.github/.github/workflows/ha-test.yml@main
+    with:
+      # The requirements of the core integrations the tests set up, at the
+      # versions each Home Assistant expects: the frontend for the sidebar
+      # panel (the blocking I/O test registers it), and conversation for the
+      # Assist sentence test in tests/ha/test_play_artist.py.
+      core-requirements: frontend conversation
+      # Type-check the integration against the newest Home Assistant.
+      mypy: custom_components/media_mgmt

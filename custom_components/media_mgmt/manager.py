@@ -364,7 +364,7 @@ class MediaManager:
                 self.notify()
 
     @callback
-    def _on_registry_update(self, event: Event) -> None:
+    def _on_registry_update(self, event: Event[Any]) -> None:
         entity_id = event.data.get("entity_id")
         if entity_id is not None and not str(entity_id).startswith("media_player."):
             return
@@ -524,13 +524,15 @@ class MediaManager:
             for s in self._playing_schedules(now or dt_util.now())
             if s.volume_limit is not None
         ]
-        return min(limited, key=lambda s: s.volume_limit) if limited else None
+        return min(limited, key=lambda s: s.volume_limit or 0) if limited else None
 
     @property
     def volume_cap(self) -> int:
         """The highest the volume may go right now: the speaker's cap, or lower while a schedule limits it."""
         sched = self.volume_limit_schedule()
-        return min(self.max_volume, sched.volume_limit) if sched else self.max_volume
+        if sched is None or sched.volume_limit is None:
+            return self.max_volume
+        return min(self.max_volume, sched.volume_limit)
 
     @callback
     def _recompute(self, *, fire_events: bool = True) -> None:
@@ -629,7 +631,7 @@ class MediaManager:
             return
         if self._unsub_stop is not None:
             return
-        delay = ACT_DELAY
+        delay: float = ACT_DELAY
         if self._stop_attempts:
             delay = self._retry_delay()
         elif (
@@ -802,7 +804,9 @@ class MediaManager:
             limited_by = self.volume_limit_schedule()
             schedule = (
                 limited_by.name
-                if limited_by and limited_by.volume_limit < self.max_volume
+                if limited_by
+                and limited_by.volume_limit is not None
+                and limited_by.volume_limit < self.max_volume
                 else None
             )
             self._log(
@@ -1017,6 +1021,8 @@ class MediaManager:
                     and run.get("faded") != occ.key
                     and self.player.is_playing
                     and not self._fade
+                    and occ.fade_from is not None
+                    and occ.stop is not None
                 ):
                     run["faded"] = occ.key
                     self.store.schedule_save()
@@ -1187,6 +1193,8 @@ class MediaManager:
             "track": "title",
             "playlist": "playlist",
         }.get(kind)
+        if field is None:  # a kind the library doesn't file music by
+            return None
         wanted = norm(value)
         best = None
         for item in self.activity.library.values():
@@ -1245,7 +1253,7 @@ class MediaManager:
     ) -> PlayResult:
         """Play an artist (or album, song, playlist) if the rules allow it."""
         player = self.player
-        base = {
+        base: dict[str, Any] = {
             "speaker": self.name,
             "name": name,
             "media_type": kind,
@@ -1524,7 +1532,7 @@ class MediaManager:
             return
         media = self.player.media
         ident = media_id(media)
-        if ident is None or ident == self._logged_play:
+        if media is None or ident is None or ident == self._logged_play:
             return
         self._logged_play = ident
         key = track_key(media)

@@ -9,12 +9,11 @@ music, limits, quiet windows and the volume cap all apply.
 
 from __future__ import annotations
 
-import voluptuous as vol
-
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
 
 from .const import INTENT_PLAY_ARTIST
+from .schema import vol
 from .targets import device_area
 
 # Newer Home Assistant validates intent slots with probatio, older with
@@ -26,7 +25,7 @@ class PlayArtistIntentHandler(intent.IntentHandler):
     """Play music by an artist on a speaker Media Mgmt manages."""
 
     intent_type = INTENT_PLAY_ARTIST
-    platforms = frozenset({"media_player"})
+    platforms = {"media_player"}
     description = (
         "Plays music by an artist on a speaker managed by Media Mgmt, using Music Assistant "
         "when the speaker has it. Use this when someone asks to play an artist or band "

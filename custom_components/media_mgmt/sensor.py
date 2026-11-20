@@ -51,7 +51,7 @@ def _now_playing(m: MediaManager) -> str | None:
         return "Off"
     media = p.media
     if media:
-        return describe(media)[:255]
+        return (describe(media) or "")[:255]
     return {"idle": "Idle", "paused": "Paused"}.get(p.state or "", "Nothing playing")
 
 

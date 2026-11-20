@@ -87,14 +87,26 @@
             }
           }
         }
+      },
+      "reconfigure": {
+        "title": "Change the speaker",
+        "description": "{profile} manages {entity}. Pick the speaker it should manage now, for example after replacing the speaker or adding it again under another name. Its rules, schedules, blocked music and listening history stay as they are.",
+        "data": {
+          "media_player": "Speaker"
+        },
+        "data_description": {
+          "media_player": "The media player for the speaker. A speaker another Media Mgmt profile manages can't be picked."
+        }
       }
     },
     "error": {
       "bad_quiet_windows": "Quiet windows should look like 20:30-07:00 Bedtime, separated by commas.",
-      "announce_needs_voice": "Pick a voice to say warnings with."
+      "announce_needs_voice": "Pick a voice to say warnings with.",
+      "speaker_taken": "Another Media Mgmt profile already manages this speaker."
     },
     "abort": {
-      "already_configured": "This speaker already has a Media Mgmt profile."
+      "already_configured": "This speaker already has a Media Mgmt profile.",
+      "reconfigure_successful": "The profile now manages the new speaker."
     }
   },
   "options": {
@@ -511,6 +523,53 @@
         "replace": "Replace the queue",
         "next": "Play next",
         "add": "Add to the queue"
+      }
+    }
+  },
+  "issues": {
+    "speaker_missing": {
+      "title": "{profile}: the speaker is gone",
+      "fix_flow": {
+        "step": {
+          "pick_speaker": {
+            "title": "Pick the speaker",
+            "description": "The speaker {profile} manages, {entity_id}, isn't in Home Assistant any more, so its listening time, limits, quiet times and blocked music aren't working. Pick the speaker it should manage now. Its rules, schedules and history stay. If the speaker comes back under the same name, this goes away by itself.",
+            "data": {
+              "media_player": "Speaker"
+            },
+            "data_description": {
+              "media_player": "The media player for the speaker. A speaker another Media Mgmt profile manages can't be picked."
+            }
+          },
+          "confirm": {
+            "title": "Nothing left to fix",
+            "description": "The Media Mgmt profile this was about was deleted, so there's nothing left to fix. Submit to close this."
+          }
+        },
+        "error": {
+          "speaker_taken": "Another Media Mgmt profile already manages this speaker."
+        }
+      }
+    },
+    "music_assistant_player_missing": {
+      "title": "{profile}: the Music Assistant player is gone",
+      "fix_flow": {
+        "step": {
+          "pick_player": {
+            "title": "Pick the Music Assistant player",
+            "description": "The Music Assistant player picked for {profile} under Playback, {entity_id}, isn't in Home Assistant any more. Pick another one, or leave it empty and Media Mgmt finds the speaker's Music Assistant player itself, as it does when none is picked.",
+            "data": {
+              "music_assistant_player": "Music Assistant player"
+            },
+            "data_description": {
+              "music_assistant_player": "Leave empty to let Media Mgmt find it."
+            }
+          },
+          "confirm": {
+            "title": "Nothing left to fix",
+            "description": "The Media Mgmt profile this was about was deleted, so there's nothing left to fix. Submit to close this."
+          }
+        }
       }
     }
   }

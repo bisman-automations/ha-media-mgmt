@@ -48,8 +48,10 @@ async def async_setup_entry(
         registry = er.async_get(hass)
         for artist_id in [i for i in buttons if i not in artists]:
             button = buttons.pop(artist_id)
-            if entity_id := registry.async_get_entity_id(
-                "button", DOMAIN, button.unique_id
+            if button.unique_id and (
+                entity_id := registry.async_get_entity_id(
+                    "button", DOMAIN, button.unique_id
+                )
             ):
                 registry.async_remove(entity_id)
         for artist_id, button in buttons.items():

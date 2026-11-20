@@ -11,8 +11,6 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from typing import Any
 
-import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
@@ -58,6 +56,7 @@ from .manager import MediaManager
 from .media import split_key, track_key
 from .quiet import parse_windows
 from .schedules import PLAY_KINDS
+from .schema import vol
 from .state import MODES
 
 ACTIONS = [
@@ -693,7 +692,7 @@ async def ws_schedule_run(hass: HomeAssistant, connection, msg) -> None:
         )
         return
     ok = await manager.async_start_schedule(sched, by=_by(connection), manual=True)
-    last = next(
+    last: dict[str, Any] = next(
         (e for e in reversed(manager.activity.events) if e["type"] == "schedule"), {}
     )
     connection.send_result(msg["id"], {"ok": ok, "detail": last.get("detail")})
@@ -888,7 +887,9 @@ async def ws_access_set(hass: HomeAssistant, connection, msg) -> None:
 
 def _managed_players(hass: HomeAssistant) -> set[str]:
     return {
-        e.data.get("media_player") for e in hass.config_entries.async_entries(DOMAIN)
+        player
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if (player := e.data.get("media_player"))
     }
 
 
@@ -943,7 +944,7 @@ async def ws_speakers_add(hass: HomeAssistant, connection, msg) -> None:
         )
         return
     # The settings step with every section left at its defaults.
-    sections = {
+    sections: dict[str, dict[str, Any]] = {
         SECTION_LISTENING: {},
         SECTION_FILTER: {},
         SECTION_VOLUME: {},

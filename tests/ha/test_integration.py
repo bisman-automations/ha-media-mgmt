@@ -67,6 +67,7 @@ def options(**over):
             "announce_on_player": False,
             "announce_players": [],
         },
+        "playback": {"music_assistant_player": None},
     }
     for section, values in over.items():
         base[section].update(values)

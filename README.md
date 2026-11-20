@@ -70,6 +70,12 @@ Or add one the usual way:
 
 The speaker needs to be set up in Home Assistant already. Everything else is set up in the sidebar app.
 
+### Changing the speaker
+
+Replaced the speaker, or added it to Home Assistant again under another name? Go to **Settings → Devices & services → Media Mgmt**, open the speaker's **⋮** menu and choose **Reconfigure**, then pick the speaker to manage now. Its rules, schedules, blocked music and listening history stay as they are.
+
+Changing a speaker's entity ID (**Settings → Entities → the speaker → Entity ID**) needs nothing from you: Media Mgmt follows it. The same goes for the Music Assistant player and the announcement speakers picked in the settings.
+
 ## Sidebar app
 
 Media Mgmt adds a **Media Mgmt** entry to the Home Assistant sidebar for admins, and for any parents you give access to. Every setting lives here, so it's the one place to manage your speakers. It needs no add-on and works in the browser and the Companion app.
@@ -348,9 +354,17 @@ Change these in the sidebar app (**Rules**), or under **Configure** on the profi
 
 ## Troubleshooting
 
+### Repairs
+
+When a speaker Media Mgmt manages is deleted from Home Assistant, its limits, quiet times and blocked music stop working, so **Settings → Repairs** says so. Select it, then **Fix**, and pick the speaker to manage now. If the speaker comes back with the same entity ID, the repair goes away by itself.
+
+The same happens when the Music Assistant player picked under **Playback** is deleted. Fix it by picking another one, or leave it empty and Media Mgmt finds the speaker's Music Assistant player itself.
+
+A speaker that's only unavailable (switched off, or its integration hasn't started yet) isn't reported.
+
 ### Diagnostics and debug logs
 
-When something goes wrong, download diagnostics from **Settings → Devices & services → Media Mgmt → ⋮ → Download diagnostics** and check the file before you share it.
+When something goes wrong, download diagnostics from **Settings → Devices & services → Media Mgmt → ⋮ → Download diagnostics** and check the file before you share it. Media Mgmt leaves out picture links, tokens, who changed the speaker, phones and announcement speakers, and anything after the `?` in web addresses.
 
 For debug logs, use **Enable debug logging** on the integration page, or add this to `configuration.yaml` and restart:
 
@@ -364,7 +378,7 @@ Then open an [issue](https://github.com/bisman-automations/ha-media-mgmt/issues/
 
 ## Development
 
-Tests cover the rules, quiet windows, the music filter, schedules and the activity log on their own, and the integration running inside Home Assistant: setup, the config flow, limits, blocked music, the volume cap, sleep timers, schedules and the websocket API.
+Tests cover the rules, quiet windows, the music filter, schedules and the activity log on their own, and the integration running inside Home Assistant: setup, the config and reconfigure flows, repairs, limits, blocked music, the volume cap, sleep timers, schedules, diagnostics, the websocket API, and that nothing reads or writes files on Home Assistant's event loop. Node tests render every tab of the sidebar app from real websocket answers (`tests/fixtures/panel_ws.json`).
 
 The brand icons are rendered from `docs/logo.svg` with `python scripts/make_brand.py`.
 
@@ -375,9 +389,18 @@ You need Python 3.14 for the current Home Assistant.
 ```bash
 python3.14 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_test.txt
+# The sidebar panel and Assist tests need the requirements of Home Assistant's
+# frontend and conversation integrations, at the versions in their
+# homeassistant/components/<name>/manifest.json (CI installs them the same way).
+pip install home-assistant-frontend==<version> hassil==<version> home-assistant-intents==<version>
 ruff check . && ruff format --check .
+mypy custom_components/media_mgmt
 pytest
+node --test tests/*.mjs
 ```
+
+After changing what a `media_mgmt/*` websocket command sends, write the Node
+tests' answers again with `MEDIA_MGMT_WRITE_FIXTURE=1 pytest tests/ha/test_panel_fixture.py`.
 
 To test against the oldest supported Home Assistant (2026.8), use Python 3.14 and
 `pip install -r requirements_test_min.txt` instead.

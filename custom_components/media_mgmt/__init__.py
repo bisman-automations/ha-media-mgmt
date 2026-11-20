@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import (
@@ -27,6 +25,7 @@ from .const import (
     ATTR_REASON,
     ATTR_WHOLE_HOME,
     BLOCK_KINDS,
+    CONF_MEDIA_PLAYER,
     DOMAIN,
     SERVICE_BLOCK_MEDIA,
     SERVICE_CANCEL_SLEEP_TIMER,
@@ -40,6 +39,8 @@ from .const import (
     SERVICE_UNBLOCK_MEDIA,
 )
 from .manager import MediaManager
+from .references import async_delete_issues, async_track_references
+from .schema import vol
 
 PLATFORMS: list[Platform] = [
     Platform.BUTTON,
@@ -145,6 +146,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MediaMgmtConfigEntry) ->
     _link_devices(hass, entry, manager)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Follow the speaker (and the other entities in the settings) when its
+    # entity ID is changed, and raise a repair issue when one is deleted.
+    entry.async_on_unload(async_track_references(hass, entry))
     return True
 
 
@@ -152,6 +156,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         await entry.runtime_data.async_stop()
+        # A disabled or deleted profile has nothing to repair; setting it up
+        # again checks afresh.
+        async_delete_issues(hass, entry.entry_id)
     return unloaded
 
 
@@ -160,14 +167,27 @@ async def async_remove_entry(hass: HomeAssistant, entry: MediaMgmtConfigEntry) -
 
     for store in (ProfileStore, ActivityStore, ScheduleStore):
         await store(hass, entry.entry_id).async_remove()
+    async_delete_issues(hass, entry.entry_id)
 
 
 async def _async_update_listener(
     hass: HomeAssistant, entry: MediaMgmtConfigEntry
 ) -> None:
-    """Settings changed: use them straight away, without reloading the profile."""
-    if entry.state is ConfigEntryState.LOADED:
-        entry.runtime_data.apply_options(dict(entry.options))
+    """The entry changed: use new settings straight away, or reload for a new speaker.
+
+    Settings apply live, without reloading the profile. A new speaker
+    (Reconfigure, the speaker's repair, or its entity ID being changed; see
+    references.py) needs a reload, since the speaker's state is watched by
+    its entity ID. Home Assistant expects the update listener to schedule
+    that reload, rather than the flow that changed the entry.
+    """
+    if entry.state is not ConfigEntryState.LOADED:
+        return
+    manager = entry.runtime_data
+    if entry.data.get(CONF_MEDIA_PLAYER) != manager.entity_id:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+        return
+    manager.apply_options(dict(entry.options))
 
 
 # ---- linked devices ----------------------------------------------------------------

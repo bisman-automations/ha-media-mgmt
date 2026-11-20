@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
@@ -71,7 +71,7 @@ class HomeLimits:
         ] = {}  # what was sent -> the day or week it was for
         self._managers: dict[str, MediaManager] = {}
         self._exhausted = False
-        self._unsub_summary = None
+        self._unsub_summary: CALLBACK_TYPE | None = None
 
     # ---- storage ----------------------------------------------------------------
 
@@ -227,7 +227,7 @@ class HomeLimits:
         kind: str,
         key: str,
         used: int,
-        limit: int,
+        limit: int | None,
         remaining: int | None = None,
     ) -> None:
         marker = f"{period}_{kind}"
@@ -239,9 +239,7 @@ class HomeLimits:
         if kind == "warning":
             message = f"{_duration(remaining or 0)} of music time left for the whole home {when}."
         else:
-            message = (
-                f"The home has used its {_duration(limit * 60)} of music time {when}."
-            )
+            message = f"The home has used its {_duration((limit or 0) * 60)} of music time {when}."
             if self.settings.action == ACTION_STOP:
                 message += " The music is stopping."
         _LOGGER.info("Media Mgmt home: %s", message)
