@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-11-21
+
+### Changed
+
+- **Less work while music plays.** Speakers that report where a song is up to every few seconds no longer make Media Mgmt check its rules again each time; it already left the sensors and the sidebar alone for those updates, and now it skips the checks too. The time listened is still counted every 15 seconds, and a new song, the volume, or the music starting or stopping is acted on at once.
+- **No Live Activity timer while nothing is showing.** Each speaker kept a 15-minute timer running all the time to restart its Live Activity before iOS ends it after 8 hours. It now only runs while a Live Activity is on the phones.
+
 ## [1.7.0] - 2026-11-19
 
 ### Added
@@ -190,6 +197,7 @@ First release.
 - Actions: `grant_extension`, `force_block`, `unblock`, `reset_usage`, `block_media`, `unblock_media`, `set_sleep_timer`, `cancel_sleep_timer` and `run_schedule`.
 - Events: `media_mgmt_media_blocked`, `media_mgmt_warning`, `media_mgmt_enforcement_changed` and `media_mgmt_schedule`.
 
+[1.7.1]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/bisman-automations/ha-media-mgmt/compare/v1.5.3...v1.5.4

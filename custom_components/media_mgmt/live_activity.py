@@ -95,9 +95,6 @@ class SpeakerLiveActivity:
 
     @callback
     def async_start(self) -> None:
-        self._interval_unsub = async_track_time_interval(
-            self.hass, self._on_interval, timedelta(minutes=15)
-        )
         # Home Assistant restarted with music playing: pick the activity up
         # again. With nothing playing, make sure one left from before goes.
         self._was_on = None
@@ -120,6 +117,7 @@ class SpeakerLiveActivity:
             self._send(self._clear_payload(), list(self._phones))
             self._showing = False
             self._last = None
+            self._stop_interval()
         self.refresh(force=True)
 
     # ---- updates ------------------------------------------------------------------
@@ -202,6 +200,13 @@ class SpeakerLiveActivity:
         self._showing = False
         self._last = None
         self._started = None
+        self._stop_interval()
+
+    @callback
+    def _stop_interval(self) -> None:
+        if self._interval_unsub:
+            self._interval_unsub()
+            self._interval_unsub = None
 
     # ---- sending ------------------------------------------------------------------
 
@@ -210,6 +215,12 @@ class SpeakerLiveActivity:
         self._last = view
         self._showing = True
         self._phones = list(phones)
+        if self._interval_unsub is None:
+            # Only while an activity is on the phones: it restarts it before
+            # iOS's 8-hour limit.
+            self._interval_unsub = async_track_time_interval(
+                self.hass, self._on_interval, timedelta(minutes=15)
+            )
         self._send(self.payload(view), phones)
 
     def payload(self, view: LiveView) -> dict[str, Any]:

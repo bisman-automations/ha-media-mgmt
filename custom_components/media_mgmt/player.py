@@ -46,6 +46,21 @@ _LOGGER = logging.getLogger(__name__)
 
 OFF_STATES = ("off", "standby")
 
+# Attributes a speaker updates while a song plays (every few seconds on some)
+# or on its own (the artwork link's token), none of which Media Mgmt reads.
+UNREAD_ATTRIBUTES = frozenset(
+    {"media_position", "media_position_updated_at", "entity_picture"}
+)
+
+
+def only_unread_changed(old: State | None, new: State | None) -> bool:
+    """Whether a state change moved only attributes Media Mgmt doesn't read."""
+    if old is None or new is None or old.state != new.state:
+        return False
+    old_attrs, new_attrs = old.attributes, new.attributes
+    keys = (old_attrs.keys() | new_attrs.keys()) - UNREAD_ATTRIBUTES
+    return all(old_attrs.get(key) == new_attrs.get(key) for key in keys)
+
 
 class Player:
     def __init__(self, hass: HomeAssistant, entity_id: str) -> None:
@@ -206,7 +221,11 @@ class Player:
         on_change = self._on_change
 
         @callback
-        def _changed(_event: Event[EventStateChangedData]) -> None:
+        def _changed(event: Event[EventStateChangedData]) -> None:
+            data = event.data
+            if only_unread_changed(data["old_state"], data["new_state"]):
+                # A play position update: the next tick counts the time.
+                return
             on_change()
 
         ids = [self.entity_id] + (
