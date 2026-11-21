@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Less work while music plays.** Many speakers tell Home Assistant where a song is up to every few seconds. Those updates no longer make Media Mgmt update its sensors, the sidebar and the Live Activity; a new song, the volume, or the music starting or stopping still shows at once.
+- **Sensors and switches are only updated when they change.** While music plays, the listening time goes up every 15 seconds, but the mode, the switches and most sensors stay the same. Those are no longer written again each time, so Home Assistant has less to handle and store.
+- **Fewer look-ups for the Music Assistant player.** Media Mgmt looked for each speaker's Music Assistant player again whenever any device in Home Assistant changed, which happens a lot while Home Assistant starts. Now it only looks when a device's name, area or network address changes.
 - **More checks before each release.** Type checking (mypy) and tests for the sidebar app, which draw every tab from what Media Mgmt really sends, now run with every change, as does a test that Media Mgmt never reads or writes files while Home Assistant is busy.
 - **Ruff 0.17.6.** Linting uses the current Ruff release.
 

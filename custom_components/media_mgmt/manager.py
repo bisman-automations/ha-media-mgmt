@@ -125,6 +125,21 @@ def _media_player_change(event_data: Mapping[str, Any]) -> bool:
     return str(event_data.get("entity_id", "")).startswith("media_player.")
 
 
+# What finding the Music Assistant player reads from a device: its names, its
+# area and its MAC address. Devices are updated far more often for other
+# reasons (firmware versions, configuration links), above all while Home
+# Assistant starts.
+_DEVICE_FIELDS = frozenset({"name", "name_by_user", "area_id", "connections"})
+
+
+@callback
+def _device_change(event_data: Mapping[str, Any]) -> bool:
+    """A device registry change that can change which player is linked."""
+    if event_data.get("action") != "update":
+        return True
+    return not _DEVICE_FIELDS.isdisjoint(event_data.get("changes") or ())
+
+
 class MediaManager:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -298,7 +313,9 @@ class MediaManager:
         )
         self._unsubs.append(
             self.hass.bus.async_listen(
-                dr.EVENT_DEVICE_REGISTRY_UPDATED, self._on_registry_update
+                dr.EVENT_DEVICE_REGISTRY_UPDATED,
+                self._on_registry_update,
+                event_filter=_device_change,
             )
         )
         self._unsubs.append(
@@ -380,7 +397,7 @@ class MediaManager:
         self._log_play()
         self._recompute()
         self._evaluate()
-        self.notify()
+        self._notify_if_changed()
 
     @callback
     def _on_tick(self, _now: datetime) -> None:
@@ -399,27 +416,45 @@ class MediaManager:
         self._recompute()
         self._check_schedules()
         self._evaluate()
-        # Tell the entities, dashboards and the Live Activity only when
-        # something they show changed (other changes call notify()).
+        self._notify_if_changed()
+
+    @callback
+    def _notify_if_changed(self) -> None:
+        """Tell the entities, dashboards and the Live Activity, but only
+        when something they show changed.
+
+        Ticks and the speaker's own updates come here: a speaker also reports
+        its play position or artwork, which Media Mgmt doesn't show. Changes
+        made in Media Mgmt call notify() directly.
+        """
         seen = self._tick_fingerprint()
         if seen != self._tick_seen:
             self._tick_seen = seen
             self.notify()
 
     def _tick_fingerprint(self) -> tuple[Any, ...]:
-        """What a tick can change: today's counts, the decision, the
-        speaker and what's playing, the link, and the next schedule."""
+        """What a tick or a speaker update can change: today's counts, the
+        decision, the speaker, what's playing and through which player, the
+        link, and the next schedule."""
         player = self.player
         now = dt_util.now()
+        twin = (
+            self.hass.states.get(self.ma_link.entity_id)
+            if self.ma_link.entity_id
+            else None
+        )
         return (
             repr(self.state),
             self.decision,
             repr(self.ma_link),
+            (twin.state, twin.name) if twin else None,
+            player.target,
             player.available,
             player.is_on,
             player.state,
             repr(player.media),
             player.volume,
+            player.features,
             tuple(s.next_run(now) for s in self.schedules if s.enabled),
         )
 
