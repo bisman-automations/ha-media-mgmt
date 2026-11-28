@@ -51,7 +51,7 @@ async def async_register_panel(hass: HomeAssistant, *, update: bool = False) -> 
         version = await hass.async_add_executor_job(_version)
         hass.data[f"{_REGISTERED}_version"] = version
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
+            [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=True)]
         )
     version = hass.data[f"{_REGISTERED}_version"]
     await panel_custom.async_register_panel(
